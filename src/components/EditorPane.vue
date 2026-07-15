@@ -12,12 +12,13 @@
       :indent-with-tab="true"
       :tab-size="store.settings.tabSize"
       @ready="onEditorReady"
+      @update="onEditorUpdate"
     />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, shallowRef, onMounted, onUnmounted } from 'vue'
+import { ref, computed, shallowRef, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { Codemirror } from 'vue-codemirror'
 import { useEditorStore } from '@/stores/editorStore'
 import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightSpecialChars, drawSelection, rectangularSelection } from '@codemirror/view'
@@ -32,11 +33,50 @@ import { oneDark } from '@codemirror/theme-one-dark'
 const store = useEditorStore()
 const editorContainer = ref(null)
 const editorView = shallowRef(null)
+let isSyncing = false
 
 const onEditorReady = (payload) => {
   const v = payload.view
   editorView.value = v
   window.editorRef = v
+  updateCursorPos(v)
+}
+
+const onEditorUpdate = (payload) => {
+  const v = payload.view
+  updateCursorPos(v)
+  if (!isSyncing && store.settings.scrollSync) {
+    const scroller = v.scrollDOM
+    if (scroller) {
+      const maxScroll = scroller.scrollHeight - scroller.clientHeight
+      if (maxScroll > 0) {
+        isSyncing = true
+        store.scrollSyncSource = { source: 'editor', percent: scroller.scrollTop / maxScroll }
+        nextTick(() => { isSyncing = false })
+      }
+    }
+  }
+}
+
+watch(() => store.scrollSyncSource, (val) => {
+  if (!val || val.source === 'editor' || !store.settings.scrollSync) return
+  const v = editorView.value
+  if (!v) return
+  const scroller = v.scrollDOM
+  if (!scroller) return
+  const maxScroll = scroller.scrollHeight - scroller.clientHeight
+  if (maxScroll <= 0) return
+  isSyncing = true
+  scroller.scrollTop = maxScroll * val.percent
+  nextTick(() => { isSyncing = false })
+})
+
+function updateCursorPos(view) {
+  if (!view) return
+  const pos = view.state.selection.main.head
+  const line = view.state.doc.lineAt(pos)
+  store.cursorLine = line.number
+  store.cursorCol = pos - line.from + 1
 }
 
 const onContentChange = (val) => {

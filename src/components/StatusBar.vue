@@ -2,7 +2,7 @@
   <div class="status-bar" v-if="store.tabs.length > 0">
     <div class="status-left">
       <span class="status-item" v-if="store.activeTab">
-        行 {{ cursorLine }}, 列 {{ cursorCol }}
+        行 {{ store.cursorLine }}, 列 {{ store.cursorCol }}
       </span>
     </div>
     <div class="status-right">
@@ -16,21 +16,11 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
 
 const store = useEditorStore()
-const cursorLine = ref(1)
-const cursorCol = ref(1)
 const saveStatus = ref({ text: '✅ 已保存', class: 'saved' })
-
-// Listen for cursor updates from editor
-// This would be connected to CodeMirror's cursor activity
-
-// Listen for save status
-// This would be connected to auto-save composable
-
-defineExpose({ updateCursor: (line, col) => { cursorLine.value = line; cursorCol.value = col } })
 </script>
 
 <style scoped>

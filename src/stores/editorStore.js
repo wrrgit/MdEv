@@ -73,6 +73,13 @@ export const useEditorStore = defineStore('editor', () => {
     }
   })
 
+  // ── 光标位置 ──
+  const cursorLine = ref(1)
+  const cursorCol = ref(1)
+
+  // ── 滚动联动 ──
+  const scrollSyncSource = ref(null)
+
   // ── 标签操作 ──
   function addTab(filePath = null, content = '', fileName = '未命名.md') {
     const id = generateId()
@@ -208,6 +215,8 @@ export const useEditorStore = defineStore('editor', () => {
     settings,
     recentFiles, recentFolders,
     content,
+    cursorLine, cursorCol,
+    scrollSyncSource,
     addTab, closeTab, closeOtherTabs, closeRightTabs, setActiveTab,
     updateTabOrder, markAsSaved,
     addRecentFile, addRecentFolder, toggleRecentPin, reorderRecent,

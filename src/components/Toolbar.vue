@@ -28,6 +28,18 @@
         </button>
       </div>
     </div>
+    <div class="toolbar-inline-group">
+      <button class="toolbar-font-btn" @click="decreaseFontSize" title="缩小字体">A-</button>
+      <span class="toolbar-font-size">{{ store.settings.editorFontSize }}</span>
+      <button class="toolbar-font-btn" @click="increaseFontSize" title="增大字体">A+</button>
+      <div class="toolbar-separator"></div>
+      <button
+        class="toolbar-font-btn"
+        :class="{ active: store.settings.scrollSync }"
+        @click="toggleScrollSync"
+        title="滚动联动"
+      >🖇</button>
+    </div>
   </div>
 </template>
 
@@ -39,6 +51,22 @@ import { EditorView } from '@codemirror/view'
 
 const store = useEditorStore()
 const openGroup = ref(null)
+
+function decreaseFontSize() {
+  const s = store.settings
+  s.editorFontSize = Math.max(10, s.editorFontSize - 1)
+  s.previewFontSize = Math.max(10, s.previewFontSize - 1)
+}
+
+function increaseFontSize() {
+  const s = store.settings
+  s.editorFontSize = Math.min(32, s.editorFontSize + 1)
+  s.previewFontSize = Math.min(32, s.previewFontSize + 1)
+}
+
+function toggleScrollSync() {
+  store.settings.scrollSync = !store.settings.scrollSync
+}
 
 function toggleGroup(idx) {
   openGroup.value = openGroup.value === idx ? null : idx
@@ -286,5 +314,54 @@ function executeItem(item) {
   font-size: 11px;
   color: var(--text-muted);
   margin-left: auto;
+}
+.toolbar-inline-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 8px;
+}
+.toolbar-font-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  min-width: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 3px;
+  transition: all 0.12s;
+}
+.toolbar-font-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+  border-color: var(--accent-color);
+}
+.toolbar-font-btn:active {
+  background: var(--active-bg);
+}
+.toolbar-font-btn.active {
+  background: var(--accent-color);
+  color: #fff;
+  border-color: var(--accent-color);
+}
+.toolbar-font-size {
+  font-size: 12px;
+  color: var(--text-primary);
+  min-width: 22px;
+  text-align: center;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.toolbar-separator {
+  width: 1px;
+  height: 16px;
+  background: var(--border-color);
+  margin: 0 4px;
 }
 </style>

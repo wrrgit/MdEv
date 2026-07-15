@@ -19,20 +19,24 @@ import { parseMarkdown } from '@/core/markdown/parser'
 const store = useEditorStore()
 const previewScroll = ref(null)
 const previewContent = ref(null)
+let isSyncing = false
 
 const renderedHtml = computed(() => {
   if (!store.activeTab) return ''
   return parseMarkdown(store.content)
 })
 
-// Sync scroll: editor → preview
-const editorScrollHandler = (editorScrollPercent) => {
-  if (!previewScroll.value || !store.settings.scrollSync) return
-  const maxScroll = previewScroll.value.scrollHeight - previewScroll.value.clientHeight
-  previewScroll.value.scrollTop = maxScroll * editorScrollPercent
-}
+watch(() => store.scrollSyncSource, (val) => {
+  if (!val || val.source === 'preview' || !store.settings.scrollSync) return
+  if (!previewScroll.value) return
+  const el = previewScroll.value
+  const maxScroll = el.scrollHeight - el.clientHeight
+  if (maxScroll <= 0) return
+  isSyncing = true
+  el.scrollTop = maxScroll * val.percent
+  nextTick(() => { isSyncing = false })
+})
 
-// Listen for editor scroll events
 watch(() => store.activeTabId, () => {
   nextTick(() => {
     if (previewScroll.value) previewScroll.value.scrollTop = 0
@@ -40,7 +44,14 @@ watch(() => store.activeTabId, () => {
 })
 
 function onPreviewScroll() {
-  // Could emit scroll percent for bidirectional sync
+  if (isSyncing || !store.settings.scrollSync) return
+  const el = previewScroll.value
+  if (!el) return
+  const maxScroll = el.scrollHeight - el.clientHeight
+  if (maxScroll <= 0) return
+  isSyncing = true
+  store.scrollSyncSource = { source: 'preview', percent: el.scrollTop / maxScroll }
+  nextTick(() => { isSyncing = false })
 }
 
 function exportImage() {
@@ -52,9 +63,6 @@ function exportPdf() {
   store.showExport = true
   store.exportFormat = 'pdf'
 }
-
-// Expose for parent to call
-defineExpose({ editorScrollHandler })
 </script>
 
 <style scoped>
@@ -104,34 +112,37 @@ defineExpose({ editorScrollHandler })
 </style>
 <style>
 .preview-scroll::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
 }
 .preview-scroll::-webkit-scrollbar-track {
   background: var(--hover-bg);
-  border-radius: 5px;
+  border-radius: 7px;
+  border: 3px solid var(--bg-primary);
 }
 .preview-scroll::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
-  border-radius: 5px;
-  border: 2px solid var(--hover-bg);
+  border-radius: 7px;
+  border: 3px solid var(--hover-bg);
+  min-height: 60px;
+  min-width: 60px;
 }
 .preview-scroll::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
 .preview-scroll::-webkit-scrollbar-corner {
-  background: var(--hover-bg);
+  background: var(--bg-primary);
 }
 
 .markdown-body {
+  min-width: max-content !important;
   word-wrap: normal !important;
   overflow-wrap: normal !important;
 }
 .markdown-body pre {
-  overflow-x: auto !important;
-  word-wrap: normal !important;
+  overflow: visible !important;
 }
 .markdown-body table {
-  overflow-x: auto !important;
+  overflow: visible !important;
 }
 </style>
