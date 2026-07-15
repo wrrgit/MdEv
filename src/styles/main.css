@@ -1,0 +1,200 @@
+/* ── CSS Variables (Light Theme) ── */
+:root,
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --bg-sidebar: #f6f8fa;
+  --bg-tabs: #f0f2f4;
+  --bg-editor: #ffffff;
+  --bg-gutter: #f6f8fa;
+
+  --text-primary: #24292e;
+  --text-secondary: #586069;
+  --text-muted: #959da5;
+
+  --border-color: #e1e4e8;
+  --hover-bg: #f3f4f6;
+  --active-bg: #e8eaed;
+  --active-line-bg: #f6f8fa;
+  --selection-bg: #0366d625;
+
+  --accent-color: #0366d6;
+  --scrollbar-bg: #f0f0f0;
+  --scrollbar-thumb: #c1c7cd;
+
+  --editor-font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+  --preview-font-family: -apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  --editor-font-size: 15px;
+  --preview-font-size: 16px;
+  --line-height: 1.6;
+}
+
+/* ── Dark Theme ── */
+[data-theme="dark"] {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-sidebar: #161b22;
+  --bg-tabs: #1c2128;
+  --bg-editor: #0d1117;
+  --bg-gutter: #161b22;
+
+  --text-primary: #c9d1d9;
+  --text-secondary: #8b949e;
+  --text-muted: #484f58;
+
+  --border-color: #30363d;
+  --hover-bg: #1c2128;
+  --active-bg: #21262d;
+  --active-line-bg: #161b22;
+  --selection-bg: #58a6ff30;
+
+  --accent-color: #58a6ff;
+  --scrollbar-bg: #21262d;
+  --scrollbar-thumb: #484f58;
+
+  --editor-font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+  --preview-font-family: -apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  --editor-font-size: 15px;
+  --preview-font-size: 16px;
+  --line-height: 1.6;
+}
+
+/* ── System Theme ── */
+[data-theme="system"] {
+  /* Default to light, JS will switch based on nativeTheme */
+}
+
+/* ── Global Reset ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── App Layout ── */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-primary);
+}
+
+.main-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.editor-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 200px;
+  min-height: 0;
+}
+
+.preview-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 200px;
+  min-height: 0;
+  border-left: 1px solid var(--border-color);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+  min-height: 40px;
+  min-width: 40px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ── Global Utility ── */
+button {
+  font-family: inherit;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  outline: none;
+}
+
+/* ── GitHub Markdown Overrides ── */
+.markdown-body {
+  background: transparent !important;
+  color: var(--text-primary) !important;
+}
+
+.markdown-body pre {
+  background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.markdown-body code {
+  background-color: var(--hover-bg);
+  border-radius: 3px;
+  padding: 0.2em 0.4em;
+}
+
+.markdown-body table tr {
+  background-color: var(--bg-primary) !important;
+  border-top: 1px solid var(--border-color);
+}
+
+.markdown-body table tr:nth-child(2n) {
+  background-color: var(--bg-secondary) !important;
+}
+
+.markdown-body blockquote {
+  color: var(--text-secondary);
+  border-left-color: var(--border-color);
+}
+
+.markdown-body .highlight pre,
+.markdown-body pre {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* ── KaTeX overrides ── */
+.katex { font-size: 1.1em !important; }
+.katex-display { overflow-x: auto; overflow-y: hidden; padding: 8px 0; }
+
+/* ── Export: hide scrollbars during print ── */
+.print-export .preview-scroll,
+.print-export .editor-pane .cm-scroller {
+  overflow: visible !important;
+}
+.print-export .preview-scroll::-webkit-scrollbar,
+.print-export .editor-pane .cm-scroller::-webkit-scrollbar {
+  display: none !important;
+}

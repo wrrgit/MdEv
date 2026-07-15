@@ -1,0 +1,83 @@
+{
+  "name": "mdev",
+  "version": "0.1.0",
+  "description": "Markdown Editor for Windows — 本地桌面端 Markdown 编辑器",
+  "main": "dist-electron/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron:dev": "cross-env ELECTRON=true vite",
+    "build:electron": "cross-env ELECTRON=true vite build",
+    "package": "npm run build:electron && electron-builder --win portable",
+    "make": "npm run build:electron && electron-builder --win nsis",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "vue": "^3.4.0",
+    "pinia": "^2.1.0",
+    "codemirror": "^6.0.0",
+    "vue-codemirror": "^6.1.0",
+    "@codemirror/lang-markdown": "^6.2.0",
+    "@codemirror/lang-json": "^6.0.0",
+    "@codemirror/search": "^6.5.0",
+    "@codemirror/commands": "^6.3.0",
+    "@codemirror/autocomplete": "^6.12.0",
+    "@codemirror/view": "^6.22.0",
+    "@codemirror/state": "^6.4.0",
+    "@codemirror/theme-one-dark": "^6.1.0",
+    "@codemirror/language": "^6.10.0",
+    "markdown-it": "^14.0.0",
+    "markdown-it-anchor": "^9.0.0",
+    "markdown-it-task-lists": "^2.1.0",
+    "markdown-it-texmath": "^1.0.0",
+    "katex": "^0.16.0",
+    "highlight.js": "^11.9.0",
+    "dompurify": "^3.0.0",
+    "github-markdown-css": "^5.5.0",
+    "mermaid": "^11.0.0",
+    "html2canvas": "^1.4.0",
+    "jspdf": "^2.5.0",
+    "jszip": "^3.10.0",
+    "electron-store": "^8.1.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "vite": "^5.4.0",
+    "@vitejs/plugin-vue": "^5.0.0",
+    "vite-plugin-electron": "^0.28.0",
+    "vite-plugin-electron-renderer": "^0.14.0",
+    "concurrently": "^9.0.0",
+    "cross-env": "^7.0.0",
+    "wait-on": "^8.0.0"
+  },
+  "build": {
+    "appId": "com.mdev.editor",
+    "productName": "MdEv",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "dist-electron/main.js"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "unicode": true
+    }
+  }
+}
