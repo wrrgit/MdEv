@@ -101,7 +101,7 @@ function exportPdf() {
 .preview-scroll {
   flex: 1;
   min-height: 0;
-  overflow: scroll;
+  overflow: auto;
 }
 .markdown-body {
   padding: 24px 32px;
@@ -143,11 +143,29 @@ function exportPdf() {
   min-width: unset !important;
   word-wrap: break-word !important;
   overflow-wrap: break-word !important;
+  overflow-x: hidden !important;
 }
 .markdown-body pre {
   overflow: visible !important;
 }
 .markdown-body table {
   overflow: visible !important;
+}
+/* 自动换行模式：代码块/表格内部横向滚动，不撑破预览区，避免整体水平滚动条 */
+.markdown-body.word-wrap-enabled pre {
+  overflow-x: auto !important;
+}
+.markdown-body.word-wrap-enabled table {
+  display: block !important;
+  overflow-x: auto !important;
+  max-width: 100% !important;
+}
+/* 自动换行模式：图片/图表按容器宽度缩放，不撑破预览区 */
+.markdown-body.word-wrap-enabled img {
+  max-width: 100% !important;
+}
+.markdown-body.word-wrap-enabled .mermaid svg {
+  max-width: 100% !important;
+  height: auto !important;
 }
 </style>

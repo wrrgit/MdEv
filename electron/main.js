@@ -76,6 +76,26 @@ async function createWindow() {
     mainWindow.loadFile(join(__dirname, '..', 'dist', 'index.html'))
   }
 
+  // 诊断：读取 renderer 的 wordWrap 调试信息并写入文件（排查自动换行不生效）
+  mainWindow.webContents.on('did-finish-load', () => {
+    let attempts = 0
+    const timer = setInterval(() => {
+      attempts++
+      if (!mainWindow || mainWindow.isDestroyed()) { clearInterval(timer); return }
+      mainWindow.webContents.executeJavaScript('window.__wwDebug || null')
+        .then(result => {
+          if (result) {
+            try {
+              writeFileSync(join(app.getPath('userData'), 'ww-debug.json'), JSON.stringify(result, null, 2))
+            } catch (e) {}
+            clearInterval(timer)
+          }
+        })
+        .catch(() => {})
+      if (attempts > 60) clearInterval(timer)
+    }, 1000)
+  })
+
   await setupMenu()
 
   mainWindow.on('resize', saveWindowBounds)
