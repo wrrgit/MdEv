@@ -6,9 +6,9 @@
       </span>
     </div>
     <div class="status-right">
-      <span class="status-item save-status" :class="saveStatus.class">
-        {{ saveStatus.text }}
-      </span>
+      <button class="view-mode-btn" @click="cycleViewMode" :title="viewModeLabel">
+        {{ viewModeLabel }}
+      </button>
       <span class="status-item">UTF-8</span>
       <span class="status-item">Markdown</span>
     </div>
@@ -16,11 +16,19 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
 
 const store = useEditorStore()
-const saveStatus = ref({ text: '✅ 已保存', class: 'saved' })
+
+const viewModeLabels = { dual: '双栏模式', edit: '编辑模式', preview: '预览模式' }
+const viewModeLabel = computed(() => viewModeLabels[store.settings.viewMode] || '双栏模式')
+
+function cycleViewMode() {
+  const order = ['dual', 'edit', 'preview']
+  const idx = order.indexOf(store.settings.viewMode)
+  store.settings.viewMode = order[(idx + 1) % order.length]
+}
 </script>
 
 <style scoped>
@@ -28,11 +36,11 @@ const saveStatus = ref({ text: '✅ 已保存', class: 'saved' })
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 24px;
-  padding: 0 12px;
+  height: 32px;
+  padding: 4px 12px;
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-color);
-  font-size: 11px;
+  font-size: 16px;
   color: var(--text-muted);
   flex-shrink: 0;
 }
@@ -44,4 +52,20 @@ const saveStatus = ref({ text: '✅ 已保存', class: 'saved' })
 .status-item.saved { color: var(--text-muted); }
 .status-item.saving { color: var(--accent-color); }
 .status-item.unsaved { color: #e78333; }
+.view-mode-btn {
+  background: transparent;
+  border: none;
+  color: var(--accent-color);
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  font-family: -apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  padding: 2px 6px;
+  letter-spacing: 0.5px;
+  transition: color 0.12s;
+  white-space: nowrap;
+}
+.view-mode-btn:hover {
+  color: var(--text-primary);
+}
 </style>

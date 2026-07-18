@@ -1,5 +1,5 @@
 <template>
-  <div class="toolbar" v-if="store.tabs.length > 0">
+  <div class="toolbar" v-if="store.tabs.length > 0" @mouseleave="closeAll">
     <div
       v-for="(group, gIdx) in toolbarConfig"
       :key="gIdx"

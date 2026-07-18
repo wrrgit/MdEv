@@ -1,5 +1,5 @@
 <template>
-  <div class="menu-bar">
+  <div class="menu-bar" @mouseleave="closeAllMenus">
     <div
       v-for="menu in menus"
       :key="menu.label"
@@ -34,7 +34,7 @@
       </div>
     </div>
   </div>
-  <div class="empty-state" v-if="store.tabs.length === 0">
+  <div class="empty-state" v-if="store.tabs.length === 0 && store.fileTree.length === 0">
     <div class="empty-content">
       <div class="empty-logo">
         <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
@@ -228,7 +228,7 @@ const menus = computed(() => [
     ]
   },
   {
-    label: '工具',
+    label: '显示',
     items: [
       { label: '文件树', action: () => { store.sidebarPanel = 'filetree'; store.sidebarVisible = true } },
       { label: '搜索', action: () => { store.sidebarPanel = 'search'; store.sidebarVisible = true } },
@@ -238,7 +238,9 @@ const menus = computed(() => [
       { label: '纯预览模式', checked: store.settings.viewMode === 'preview', action: () => { store.settings.viewMode = 'preview' } },
       { separator: true },
       { label: '切换侧栏', shortcut: 'Ctrl+B', action: () => { store.sidebarVisible = !store.sidebarVisible } },
-      { label: '滚动同步', checked: store.settings.scrollSync, action: () => { store.settings.scrollSync = !store.settings.scrollSync } }
+      { label: '滚动同步', checked: store.settings.scrollSync, action: () => { store.settings.scrollSync = !store.settings.scrollSync } },
+      { separator: true },
+      { label: '自动换行', checked: store.settings.wordWrap, action: () => { store.settings.wordWrap = !store.settings.wordWrap; window.api?.setSettings({ settings: { ...store.settings } }) } }
     ]
   },
   {

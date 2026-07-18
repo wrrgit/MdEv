@@ -59,7 +59,8 @@ contextBridge.exposeInMainWorld('api', {
       'menu:save', 'menu:save-as',
       'menu:export-pdf', 'menu:export-image',
       'menu:find', 'menu:find-global', 'menu:goto-line',
-      'menu:view-mode', 'menu:toggle-sidebar', 'menu:settings'
+      'menu:view-mode', 'menu:toggle-sidebar', 'menu:settings',
+      'menu:toggle-wordwrap'
     ]
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (_, ...args) => callback(...args))

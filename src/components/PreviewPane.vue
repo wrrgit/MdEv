@@ -6,7 +6,7 @@
       <button class="preview-btn" @click="exportPdf" title="导出为 PDF">📄</button>
     </div>
     <div class="preview-scroll" ref="previewScroll" @scroll="onPreviewScroll">
-      <div class="markdown-body" v-html="renderedHtml" ref="previewContent"></div>
+      <div class="markdown-body" :class="{ 'word-wrap-enabled': store.settings.wordWrap }" v-html="renderedHtml" ref="previewContent"></div>
     </div>
   </div>
 </template>
@@ -138,6 +138,11 @@ function exportPdf() {
   min-width: max-content !important;
   word-wrap: normal !important;
   overflow-wrap: normal !important;
+}
+.markdown-body.word-wrap-enabled {
+  min-width: unset !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
 }
 .markdown-body pre {
   overflow: visible !important;

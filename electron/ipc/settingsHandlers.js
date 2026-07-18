@@ -1,40 +1,47 @@
 import { app, ipcMain, nativeTheme, BrowserWindow } from 'electron'
 import { join } from 'path'
 
+let sharedStore = null
+
+export async function getSettingsStore() {
+  if (!sharedStore) {
+    const ElectronStore = (await import('electron-store')).default
+    sharedStore = new ElectronStore({
+      name: 'mdev-settings',
+      cwd: join(app.getPath('userData'), 'config'),
+      defaults: {
+        settings: {
+          theme: 'system',
+          editorFontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace",
+          editorFontSize: 15,
+          previewFontFamily: "-apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif",
+          previewFontSize: 16,
+          lineHeight: 1.6,
+          tabSize: 4,
+          wordWrap: false,
+          showLineNumbers: true,
+          highlightActiveLine: true,
+          matchBrackets: true,
+          codeFolding: true,
+          scrollSync: true,
+          autoSaveInterval: 3,
+          defaultPanelFocus: 'filetree',
+          recentFilesMax: 20
+        },
+        recentFiles: [],
+        recentFolders: []
+      }
+    })
+  }
+  return sharedStore
+}
+
 export function registerSettingsHandlers(ipcMainInstance) {
   let store = null
 
   async function getStore() {
-    if (!store) {
-      const ElectronStore = (await import('electron-store')).default
-      store = new ElectronStore({
-        name: 'mdev-settings',
-        cwd: join(app.getPath('userData'), 'config'),
-        defaults: {
-          settings: {
-            theme: 'system',
-            editorFontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace",
-            editorFontSize: 15,
-            previewFontFamily: "-apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif",
-            previewFontSize: 16,
-            lineHeight: 1.6,
-            tabSize: 4,
-            wordWrap: false,
-            showLineNumbers: true,
-            highlightActiveLine: true,
-            matchBrackets: true,
-            codeFolding: true,
-            scrollSync: true,
-            autoSaveInterval: 3,
-            defaultPanelFocus: 'filetree',
-            recentFilesMax: 20
-          },
-          recentFiles: [],
-          recentFolders: []
-        }
-      })
-    }
-    return store
+    sharedStore = await getSettingsStore()
+    return sharedStore
   }
 
   ipcMainInstance.handle('settings:get', async () => {

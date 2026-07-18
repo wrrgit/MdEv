@@ -1,5 +1,5 @@
 <template>
-  <div class="editor-pane" ref="editorContainer" v-show="store.tabs.length > 0">
+  <div class="editor-pane" :class="{ 'word-wrap': store.settings.wordWrap }" ref="editorContainer" v-show="store.tabs.length > 0">
     <Codemirror
       v-if="store.activeTab"
       :key="store.activeTabId"
@@ -124,10 +124,6 @@ const cmExtensions = computed(() => {
     })
   ]
 
-  if (store.settings.wordWrap) {
-    exts.push(EditorView.lineWrapping)
-  }
-
   return exts
 })
 
@@ -156,6 +152,20 @@ onUnmounted(() => {
   height: 100%;
   overflow: hidden;
   background: var(--bg-editor);
+}
+.editor-pane.word-wrap .cm-editor {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+}
+.editor-pane.word-wrap .cm-scroller {
+  overflow-wrap: break-word !important;
+  word-break: break-word !important;
+}
+.editor-pane.word-wrap .cm-content {
+  white-space: pre-wrap !important;
+  overflow-wrap: break-word !important;
+  word-break: break-word !important;
 }
 </style>
 <style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="panel-sidebar" :class="{ collapsed: !hasTabs || !store.sidebarVisible }" :style="{ width: store.sidebarWidth + 'px' }">
+  <div class="panel-sidebar" :class="{ collapsed: (!hasTabs && !hasFileTree) || !store.sidebarVisible }" :style="{ width: store.sidebarWidth + 'px' }">
     <div class="sidebar-tabs">
       <button
         v-for="panel in panels"
@@ -91,6 +91,7 @@ const searchScope = ref('file')
 const searchResults = ref([])
 
 const hasTabs = computed(() => store.tabs.length > 0)
+const hasFileTree = computed(() => store.fileTree.length > 0)
 
 function startSplitDrag(e) {
   e.preventDefault()

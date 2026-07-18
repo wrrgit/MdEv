@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { registerFileHandlers } from './ipc/fileHandlers.js'
 import { registerSearchHandlers } from './ipc/searchHandlers.js'
 import { registerExportHandlers } from './ipc/exportHandlers.js'
-import { registerSettingsHandlers } from './ipc/settingsHandlers.js'
+import { registerSettingsHandlers, getSettingsStore } from './ipc/settingsHandlers.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const isDev = process.env.NODE_ENV === 'development'
@@ -40,7 +40,7 @@ function getDefaultBounds() {
   }
 }
 
-function createWindow() {
+async function createWindow() {
   const saved = loadWindowBounds()
   const defaults = getDefaultBounds()
 
@@ -76,7 +76,7 @@ function createWindow() {
     mainWindow.loadFile(join(__dirname, '..', 'dist', 'index.html'))
   }
 
-  setupMenu()
+  await setupMenu()
 
   mainWindow.on('resize', saveWindowBounds)
   mainWindow.on('move', saveWindowBounds)
@@ -85,7 +85,8 @@ function createWindow() {
   })
 }
 
-function setupMenu() {
+async function setupMenu() {
+  const settingsStore = await getSettingsStore()
   const template = [
     {
       label: '文件',
@@ -191,6 +192,17 @@ function setupMenu() {
         { type: 'separator' },
         { role: 'toggleDevTools', label: '开发者工具' },
         { role: 'reload', label: '重新加载' }
+      ]
+    },
+    {
+      label: '显示',
+      submenu: [
+        {
+          label: '自动换行',
+          type: 'checkbox',
+          checked: settingsStore.get('settings.wordWrap', false),
+          click: (menuItem) => mainWindow?.webContents.send('menu:toggle-wordwrap', menuItem.checked)
+        }
       ]
     },
     {

@@ -165,6 +165,10 @@ onMounted(async () => {
     window.api.onMenuEvent('menu:toggle-sidebar', () => {
       store.sidebarVisible = !store.sidebarVisible
     })
+    window.api.onMenuEvent('menu:toggle-wordwrap', (checked) => {
+      store.settings.wordWrap = checked
+      window.api.setSettings({ settings: { ...store.settings } })
+    })
   }
 })
 
@@ -173,7 +177,8 @@ onUnmounted(() => {
     const channels = [
       'menu:new-file', 'menu:open-file', 'menu:open-folder',
       'menu:save', 'menu:save-as', 'menu:export-pdf', 'menu:export-image',
-      'menu:find', 'menu:find-global', 'menu:settings', 'menu:toggle-sidebar'
+      'menu:find', 'menu:find-global', 'menu:settings', 'menu:toggle-sidebar',
+      'menu:toggle-wordwrap'
     ]
     channels.forEach(c => window.api.removeMenuListener(c))
   }
