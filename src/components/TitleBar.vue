@@ -2,10 +2,7 @@
   <div class="title-bar" @dblclick="toggleMaximize">
     <div class="title-bar-drag">
       <span class="app-logo">
-        <svg width="18" height="18" viewBox="0 0 64 64" fill="none" class="logo-svg">
-          <rect x="4" y="4" width="56" height="56" rx="12" stroke="currentColor" stroke-width="4" fill="none"/>
-          <path d="M18 22h28M18 32h20M18 42h24" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-        </svg>
+        <img src="@/assets/logo.png" alt="MdEv" width="24" height="24" class="logo-img" />
       </span>
       <span class="file-name">{{ currentFileName }}</span>
     </div>
@@ -65,7 +62,7 @@ const closeWindow = () => window.api?.closeWindow()
   align-items: center;
   color: var(--accent-color);
 }
-.logo-svg {
+.logo-img {
   display: block;
 }
 .file-name {

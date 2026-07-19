@@ -33,16 +33,27 @@ export default defineConfig(({ command, mode }) => {
       ]),
       renderer(),
       {
-        name: 'copy-preload',
+        name: 'copy-preload-and-assets',
         closeBundle() {
-          const src = resolve(__dirname, 'electron', 'preload.cjs')
           const destDir = resolve(__dirname, 'dist-electron')
           if (!existsSync(destDir)) {
             mkdirSync(destDir, { recursive: true })
           }
-          const dest = resolve(destDir, 'preload.cjs')
-          if (existsSync(src)) {
-            copyFileSync(src, dest)
+          const preloadSrc = resolve(__dirname, 'electron', 'preload.cjs')
+          if (existsSync(preloadSrc)) {
+            copyFileSync(preloadSrc, resolve(destDir, 'preload.cjs'))
+          }
+          const assetsDir = resolve(destDir, 'assets', 'icons')
+          if (!existsSync(assetsDir)) {
+            mkdirSync(assetsDir, { recursive: true })
+          }
+          const iconIco = resolve(__dirname, 'assets', 'icons', 'icon.ico')
+          const iconPng = resolve(__dirname, 'assets', 'icons', 'icon.png')
+          if (existsSync(iconIco)) {
+            copyFileSync(iconIco, resolve(assetsDir, 'icon.ico'))
+          }
+          if (existsSync(iconPng)) {
+            copyFileSync(iconPng, resolve(assetsDir, 'icon.png'))
           }
         }
       }

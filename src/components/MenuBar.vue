@@ -37,12 +37,7 @@
   <div class="empty-state" v-if="store.tabs.length === 0 && store.fileTree.length === 0">
     <div class="empty-content">
       <div class="empty-logo">
-        <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-          <rect x="4" y="4" width="56" height="56" rx="12" stroke="currentColor" stroke-width="3" fill="none"/>
-          <path d="M18 22h28M18 32h20M18 42h24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-          <circle cx="50" cy="18" r="10" fill="var(--accent-color)" opacity="0.2"/>
-          <text x="50" y="22" text-anchor="middle" font-size="12" font-weight="bold" fill="var(--accent-color)">M</text>
-        </svg>
+        <img src="@/assets/logo.png" alt="MdEv" width="64" height="64" />
       </div>
       <h2>MdEv</h2>
       <p class="empty-sub">Markdown Editor for Windows</p>

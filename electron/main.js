@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, dialog, nativeTheme, screen } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, dialog, nativeTheme, screen, nativeImage } from 'electron'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
@@ -50,7 +50,7 @@ async function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: 'MdEv',
-    icon: join(__dirname, '..', 'assets', 'icons', 'icon.png'),
+    icon: nativeImage.createFromPath(join(__dirname, '..', 'assets', 'icons', 'icon.png')),
     webPreferences: {
       preload: join(__dirname, 'preload.cjs'),
       contextIsolation: true,
