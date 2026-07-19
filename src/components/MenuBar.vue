@@ -43,12 +43,12 @@
       <p class="empty-sub">Markdown Editor for Windows</p>
       <div class="empty-actions">
         <button class="empty-btn" @click="openFileAction">
-          <span>📂 打开文件</span>
+          <span>📄 打开文件</span>
         </button>
         <button class="empty-btn" @click="openFolderAction">
           <span>📁 打开文件夹</span>
         </button>
-        <button class="empty-btn primary" @click="newFileAction">
+        <button class="empty-btn" @click="newFileAction">
           <span>📄 新建文件</span>
         </button>
       </div>
@@ -418,9 +418,12 @@ function execute(item) {
 .empty-content h2 {
   font-size: 36px;
   font-weight: 800;
-  color: var(--accent-color);
   margin: 0 0 4px;
   letter-spacing: -1px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 .empty-sub {
   font-size: 14px;

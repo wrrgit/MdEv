@@ -158,7 +158,10 @@ function togglePin(type, path) {
 .welcome-title {
   font-size: 42px;
   font-weight: 800;
-  color: var(--text-primary);
+  background: linear-gradient(135deg, #f02c2e 0%, #ff6672 50%, #ff7673 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin: 0;
   letter-spacing: -1px;
 }
