@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-electron/
+release/
+
+# Build artifacts (root-level copies of compiled output)
+/main.js
+/preload.cjs
+index-*.css
+
+# IDE & editor
+.vscode/
+.idea/
+.atomcode/
+.claude/
+*.swp
+*.swo
+
+# AI assistant config
+AGENTS.md
+
+# OS files
+*.local
+.env
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Misc
+.cache/
