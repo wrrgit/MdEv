@@ -32,10 +32,9 @@ MdEv 是一款基于 Electron + Vue 3 + CodeMirror 6 构建的 Windows 桌面端
 ## 界面预览
 
 <div align="center">
-软件首页
+
 ![MdEv 欢迎页](./screenshot/搜狗截图20260719214922.png)
 
-支持打开文件夹
 ![MdEv 主编辑界面](./screenshot/搜狗截图20260719215030.png)
 
 </div>
