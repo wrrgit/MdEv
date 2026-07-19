@@ -96,6 +96,20 @@ async function createWindow() {
     }, 1000)
   })
 
+  // 诊断：持续读取目录跳转调试信息（每次点击目录更新），写入 toc-debug.json
+  const tocTimer = setInterval(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) { clearInterval(tocTimer); return }
+    mainWindow.webContents.executeJavaScript('window.__tocDebug || null')
+      .then(result => {
+        if (result) {
+          try {
+            writeFileSync(join(app.getPath('userData'), 'toc-debug.json'), JSON.stringify(result, null, 2))
+          } catch (e) {}
+        }
+      })
+      .catch(() => {})
+  }, 1500)
+
   await setupMenu()
 
   mainWindow.on('resize', saveWindowBounds)

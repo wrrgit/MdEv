@@ -38,7 +38,7 @@
             class="toc-item"
             :class="{ active: item.line === activeTocLine }"
             :style="{ paddingLeft: (item.level - 1) * 16 + 8 + 'px' }"
-            @click="jumpToLine(item.line)"
+            @click="onTocItemClick(item)"
           >
             {{ item.text }}
           </div>
@@ -145,16 +145,87 @@ const activeTocLine = computed(() => {
   return 0
 })
 
+// 去除 markdown 行内标记，得到纯文本（TOC 的 item.text 含原始标记，需与渲染后 textContent 对齐）
+function stripMarkdown(s) {
+  return s
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/~~([^~]+)~~/g, '$1')
+    .trim()
+}
+
 function jumpToLine(line) {
-  const editor = window.editorRef?.editorView
+  // window.editorRef 本身即 EditorView 实例（EditorPane onEditorReady 中赋值），
+  // 原代码访问 window.editorRef?.editorView 不存在，导致跳转静默失败
+  const editor = window.editorRef
   if (editor) {
-    const pos = editor.state.doc.line(line).from
-    editor.dispatch({
-      selection: { anchor: pos },
-      scrollIntoView: true
-    })
-    editor.focus()
+    try {
+      const pos = editor.state.doc.line(line).from
+      editor.dispatch({
+        selection: { anchor: pos },
+        scrollIntoView: 'start'
+      })
+      editor.focus()
+    } catch (e) {
+      window.__tocDebug = window.__tocDebug || {}
+      window.__tocDebug.editorError = String(e)
+    }
   }
+}
+
+// 预览视图跳转：根据标题级别+文本在渲染后的 HTML 中定位对应标题并滚动
+function scrollToPreviewHeading(item) {
+  const previewScroll = document.querySelector('.preview-scroll')
+  if (!previewScroll) return
+  const tag = 'h' + item.level
+  const headings = previewScroll.querySelectorAll(tag)
+  const targetText = stripMarkdown(item.text)
+  let found = null
+  for (const h of headings) {
+    if (h.textContent.trim() === targetText) { found = h; break }
+  }
+  // fallback：精确匹配失败时用包含关系（应对边缘标记）
+  if (!found) {
+    for (const h of headings) {
+      const ht = h.textContent.trim()
+      if (ht && (ht.includes(targetText) || targetText.includes(ht))) { found = h; break }
+    }
+  }
+  window.__tocDebug = window.__tocDebug || {}
+  window.__tocDebug.preview = {
+    headingCount: headings.length,
+    targetText,
+    found: !!found
+  }
+  if (found) {
+    const rect = found.getBoundingClientRect()
+    const containerRect = previewScroll.getBoundingClientRect()
+    previewScroll.scrollTop += (rect.top - containerRect.top) - 8
+    found.classList.add('toc-flash')
+    setTimeout(() => found.classList.remove('toc-flash'), 1200)
+  }
+}
+
+function onTocItemClick(item) {
+  // 诊断：记录目录点击的运行时状态，便于排查跳转失效
+  const editor = window.editorRef
+  window.__tocDebug = {
+    time: new Date().toISOString(),
+    item: { line: item.line, level: item.level, text: item.text, stripped: stripMarkdown(item.text) },
+    hasEditor: !!editor,
+    editorConstructor: editor ? (editor.constructor?.name || 'unknown') : 'null',
+    docLen: editor ? editor.state.doc.length : 0,
+    cmEditorExists: !!document.querySelector('.cm-editor'),
+    previewScrollExists: !!document.querySelector('.preview-scroll'),
+    viewMode: store.settings.viewMode
+  }
+  jumpToLine(item.line)
+  scrollToPreviewHeading(item)
 }
 
 async function openFolder() {
@@ -380,5 +451,19 @@ function highlightMatch(lineContent, matches) {
 .sidebar-splitter:hover,
 .sidebar-splitter:active {
   background: var(--accent-color);
+}
+</style>
+
+<style>
+/* 目录跳转时预览视图标题的高亮闪烁（作用于 .preview-scroll 内的标题，需全局样式） */
+@keyframes toc-flash-anim {
+  0% { background-color: var(--accent-color, #4a9eff); color: #fff; }
+  100% { background-color: transparent; }
+}
+.markdown-body .toc-flash {
+  animation: toc-flash-anim 1.2s ease-out;
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: -2px -4px;
 }
 </style>
