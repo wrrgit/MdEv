@@ -2,6 +2,40 @@
 
 ---
 
+## 2026-07-19
+
+### 1. 修复 PDF/图片导出内容为截图而非 Markdown 渲染内容
+
+**问题**：
+- 导出 PDF 时，输出的是预览区域的截图（html2canvas），而非完整的 Markdown 渲染内容
+- 导出图片时同样是截图，且缺少样式、代码高亮、数学公式、Mermaid 图表等
+
+**根本原因**：
+- `useExport.js` 中 `exportImage` 使用 `html2canvas` 截取 `.markdown-body` DOM 元素
+- `exportPdf` 调用主进程 `printToPDF()` 直接打印当前窗口，包含编辑器/工具栏等 UI 元素
+- 两者都依赖渲染进程现有的预览 DOM，无法获取完整的打印样式 CSS
+
+**修复**：
+- 新建 `electron/ipc/sanitizeHtml.js`：使用 jsdom + DOMPurify 在主进程安全清洗 HTML
+- 重写 `electron/ipc/exportHandlers.js`：
+  - 生成包含 GitHub Flavored Markdown 完整样式的独立 HTML 页面（含亮/暗主题、代码高亮、表格、KaTeX、Mermaid 样式）
+  - PDF 导出：创建隐藏 `BrowserWindow` 加载 HTML，调用 `printToPDF()` 并支持页边距/纸张大小
+  - 图片导出：新增 `export:image:markdown`，创建隐藏窗口渲染 HTML，使用 `capturePage()` 截取 PNG（支持缩放倍率）
+  - ZIP 导出保持不变
+- 更新 `src/composables/useExport.js`：
+  - `exportPdf` 传入 markdown 内容 + 主题，不再依赖 `print-export` CSS 类
+  - `exportImage` 调用新的 `exportImageMarkdown` API，直接传 markdown 内容
+- 更新 `preload.cjs` 暴露 `exportImageMarkdown`
+- `vite.config.js`：electron 构建外部化 `jsdom`、`dompurify`
+
+### 2. 首页 MdEv 标题渐变色适配 Logo 红色配色
+
+**改动**（WelcomePage.vue）：
+- `.welcome-title` 从单色 `var(--text-primary)` 改为渐变：`linear-gradient(135deg, #f02c2e 0%, #ff6672 50%, #ff7673 100%)`
+- 配色取自 `logo.png` 主色调（深红 #f02c2e、珊瑚红 #ff6672、浅珊瑚 #ff7673）
+
+---
+
 ## 2026-07-15
 
 ### 1. 预览视图滚动条修复

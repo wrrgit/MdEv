@@ -1,24 +1,45 @@
 import { ref } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
+import { parseMarkdown } from '@/core/markdown/parser'
 
 export function useExport() {
   const store = useEditorStore()
   const isExporting = ref(false)
   const exportProgress = ref('')
 
+  // 把当前 tab 的 markdown 渲染成已净化的 HTML（含代码高亮、katex 公式）
+  // 注意：必须传渲染后的 HTML，而非原始 markdown 文本，否则导出内容是源码而非渲染结果
+  function getRenderedHtml() {
+    const content = store.activeTab?.content || ''
+    if (!content) return ''
+    return parseMarkdown(content)
+  }
+
+  function getBaseName() {
+    return store.activeTab?.fileName?.replace(/\.md$/i, '') || 'export'
+  }
+
   async function exportPdf(options = {}) {
     isExporting.value = true
     exportProgress.value = '正在生成 PDF...'
 
     try {
-      document.documentElement.classList.add('print-export')
+      const content = getRenderedHtml()
+      if (!content) {
+        exportProgress.value = '没有内容可导出'
+        return { success: false, error: 'No content to export' }
+      }
 
       const result = await window.api?.exportPdf({
         pageSize: options.pageSize || 'A4',
-        ...options
+        marginTop: options.marginTop || 0.75,
+        marginBottom: options.marginBottom || 0.75,
+        marginLeft: options.marginLeft || 0.75,
+        marginRight: options.marginRight || 0.75,
+        defaultPath: getBaseName() + '.pdf',
+        content,
+        theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
       })
-
-      document.documentElement.classList.remove('print-export')
 
       if (result?.success) {
         exportProgress.value = 'PDF 导出成功'
@@ -31,7 +52,6 @@ export function useExport() {
         return { success: false, error: result?.error }
       }
     } catch (err) {
-      document.documentElement.classList.remove('print-export')
       exportProgress.value = '导出失败: ' + err.message
       return { success: false, error: err.message }
     } finally {
@@ -44,32 +64,28 @@ export function useExport() {
     exportProgress.value = '正在生成图片...'
 
     try {
-      const previewEl = document.querySelector('.markdown-body')
-      if (!previewEl) {
-        exportProgress.value = '预览区不可用'
-        return { success: false, error: 'Preview not available' }
+      const content = getRenderedHtml()
+      if (!content) {
+        exportProgress.value = '没有内容可导出'
+        return { success: false, error: 'No content to export' }
       }
 
-      const html2canvas = (await import('html2canvas')).default
-
-      // Capture preview area
-      const canvas = await html2canvas(previewEl, {
-        backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-primary').trim() || '#ffffff',
-        scale: options.scale || 2,
-        useCORS: true,
-        logging: false
+      const result = await window.api?.exportImageMarkdown({
+        defaultPath: getBaseName() + '.png',
+        content,
+        theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
+        scale: options.scale || 2
       })
 
-      const dataUrl = canvas.toDataURL('image/png')
-      const defaultName = store.activeTab?.fileName?.replace(/\.md$/, '') + '.png' || 'export.png'
-
-      const result = await window.api?.exportImage(dataUrl, defaultName)
       if (result?.success) {
         exportProgress.value = '图片导出成功'
         return { success: true, filePath: result.filePath }
-      } else {
+      } else if (result?.canceled) {
         exportProgress.value = '已取消'
         return { success: false, canceled: true }
+      } else {
+        exportProgress.value = '导出失败: ' + (result?.error || '未知错误')
+        return { success: false, error: result?.error }
       }
     } catch (err) {
       exportProgress.value = '导出失败: ' + err.message
@@ -79,25 +95,32 @@ export function useExport() {
     }
   }
 
-  async function exportZip(options = {}) {
+  async function exportHtml(options = {}) {
     isExporting.value = true
-    exportProgress.value = '正在打包...'
+    exportProgress.value = '正在生成 HTML...'
 
     try {
-      const defaultName = store.projectRoot?.split(/[\\/]/).pop() + '.zip' || 'project.zip'
+      const content = getRenderedHtml()
+      if (!content) {
+        exportProgress.value = '没有内容可导出'
+        return { success: false, error: 'No content to export' }
+      }
 
-      const result = await window.api?.exportZip(
-        store.projectRoot,
-        defaultName,
-        options.include || ['*']
-      )
+      const result = await window.api?.exportHtml({
+        defaultPath: getBaseName() + '.html',
+        content,
+        theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
+      })
 
       if (result?.success) {
-        exportProgress.value = 'ZIP 导出成功'
+        exportProgress.value = 'HTML 导出成功'
         return { success: true, filePath: result.filePath }
-      } else {
+      } else if (result?.canceled) {
         exportProgress.value = '已取消'
         return { success: false, canceled: true }
+      } else {
+        exportProgress.value = '导出失败: ' + (result?.error || '未知错误')
+        return { success: false, error: result?.error }
       }
     } catch (err) {
       exportProgress.value = '导出失败: ' + err.message
@@ -112,6 +135,6 @@ export function useExport() {
     exportProgress,
     exportPdf,
     exportImage,
-    exportZip
+    exportHtml
   }
 }

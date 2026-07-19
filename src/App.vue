@@ -153,6 +153,10 @@ onMounted(async () => {
       store.exportFormat = 'image'
       store.showExport = true
     })
+    window.api.onMenuEvent('menu:export-html', () => {
+      store.exportFormat = 'html'
+      store.showExport = true
+    })
     window.api.onMenuEvent('menu:find', () => {
       store.sidebarPanel = 'search'
     })
@@ -176,7 +180,7 @@ onUnmounted(() => {
   if (window.api?.removeMenuListener) {
     const channels = [
       'menu:new-file', 'menu:open-file', 'menu:open-folder',
-      'menu:save', 'menu:save-as', 'menu:export-pdf', 'menu:export-image',
+      'menu:save', 'menu:save-as', 'menu:export-pdf', 'menu:export-image', 'menu:export-html',
       'menu:find', 'menu:find-global', 'menu:settings', 'menu:toggle-sidebar',
       'menu:toggle-wordwrap'
     ]

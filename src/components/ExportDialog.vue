@@ -27,11 +27,11 @@
             </button>
             <button
               class="type-btn"
-              :class="{ active: exportType === 'zip' }"
-              @click="exportType = 'zip'"
+              :class="{ active: exportType === 'html' }"
+              @click="exportType = 'html'"
             >
-              <span class="type-icon">📦</span>
-              <span>ZIP</span>
+              <span class="type-icon">🌐</span>
+              <span>HTML</span>
             </button>
           </div>
 
@@ -66,20 +66,10 @@
                 </select>
               </div>
             </div>
-
-            <div v-if="exportType === 'zip'" class="zip-settings">
-              <div class="form-group">
-                <label>打包范围</label>
-                <select v-model="zipOptions.include">
-                  <option value="all">整个项目</option>
-                  <option value="current">仅当前文件</option>
-                </select>
-              </div>
-            </div>
           </div>
         </div>
 
-        <div class="export-preview" v-if="exportType !== 'zip'">
+        <div class="export-preview">
           <span class="preview-label">预览内容</span>
           <div class="preview-content">
             <div class="markdown-body" v-html="previewHtml"></div>
@@ -108,7 +98,7 @@ import { useExport } from '@/composables/useExport'
 import { parseMarkdown } from '@/core/markdown/parser'
 
 const store = useEditorStore()
-const { isExporting, exportProgress, exportPdf, exportImage, exportZip } = useExport()
+const { isExporting, exportProgress, exportPdf, exportImage, exportHtml } = useExport()
 
 const exportType = ref(store.exportFormat || 'pdf')
 const exportStatus = ref('')
@@ -122,7 +112,6 @@ const pdfOptions = ref({
 })
 
 const imageOptions = ref({ scale: 2 })
-const zipOptions = ref({ include: 'all' })
 
 const previewHtml = computed(() => {
   return parseMarkdown(store.activeTab?.content || '')
@@ -139,8 +128,8 @@ async function doExport() {
     case 'image':
       result = await exportImage(imageOptions.value)
       break
-    case 'zip':
-      result = await exportZip(zipOptions.value)
+    case 'html':
+      result = await exportHtml()
       break
   }
 

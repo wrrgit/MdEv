@@ -160,6 +160,10 @@ async function setupMenu() {
           label: '导出图片...',
           click: () => mainWindow?.webContents.send('menu:export-image')
         },
+        {
+          label: '导出 HTML...',
+          click: () => mainWindow?.webContents.send('menu:export-html')
+        },
         { type: 'separator' },
         { role: 'quit', label: '退出' }
       ]

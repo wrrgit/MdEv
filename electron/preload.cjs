@@ -30,8 +30,8 @@ contextBridge.exposeInMainWorld('api', {
   // ── 导出 ──
   exportPdf: (options) => ipcRenderer.invoke('export:pdf', options),
   exportImage: (dataUrl, filePath) => ipcRenderer.invoke('export:image', dataUrl, filePath),
-  exportZip: (rootPath, outputPath, include) =>
-    ipcRenderer.invoke('export:zip', rootPath, outputPath, include),
+  exportImageMarkdown: (options) => ipcRenderer.invoke('export:image:markdown', options),
+  exportHtml: (options) => ipcRenderer.invoke('export:html', options),
 
   // ── 设置 ──
   getSettings: () => ipcRenderer.invoke('settings:get'),
@@ -57,7 +57,7 @@ contextBridge.exposeInMainWorld('api', {
     const validChannels = [
       'menu:new-file', 'menu:open-file', 'menu:open-folder',
       'menu:save', 'menu:save-as',
-      'menu:export-pdf', 'menu:export-image',
+      'menu:export-pdf', 'menu:export-image', 'menu:export-html',
       'menu:find', 'menu:find-global', 'menu:goto-line',
       'menu:view-mode', 'menu:toggle-sidebar', 'menu:settings',
       'menu:toggle-wordwrap'

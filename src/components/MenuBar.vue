@@ -188,6 +188,7 @@ const menus = computed(() => [
       { separator: true },
       { label: '导出 PDF...', action: () => { store.exportFormat = 'pdf'; store.showExport = true } },
       { label: '导出图片...', action: () => { store.exportFormat = 'image'; store.showExport = true } },
+      { label: '导出 HTML...', action: () => { store.exportFormat = 'html'; store.showExport = true } },
       { separator: true },
       { label: '退出', action: () => window.api?.closeWindow() }
     ]
