@@ -2,7 +2,6 @@
   <div class="preview-pane" v-show="store.tabs.length > 0 && store.settings.viewMode !== 'edit'">
     <div class="preview-toolbar">
       <span class="preview-title">预览</span>
-      <button class="preview-btn" @click="exportImage" title="导出为图片">🖼</button>
       <button class="preview-btn" @click="exportPdf" title="导出为 PDF">📄</button>
     </div>
     <div class="preview-scroll" ref="previewScroll" @scroll="onPreviewScroll">
@@ -52,11 +51,6 @@ function onPreviewScroll() {
   isSyncing = true
   store.scrollSyncSource = { source: 'preview', percent: el.scrollTop / maxScroll }
   nextTick(() => { isSyncing = false })
-}
-
-function exportImage() {
-  store.showExport = true
-  store.exportFormat = 'image'
 }
 
 function exportPdf() {

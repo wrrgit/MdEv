@@ -157,10 +157,6 @@ async function setupMenu() {
           click: () => mainWindow?.webContents.send('menu:export-pdf')
         },
         {
-          label: '导出图片...',
-          click: () => mainWindow?.webContents.send('menu:export-image')
-        },
-        {
           label: '导出 HTML...',
           click: () => mainWindow?.webContents.send('menu:export-html')
         },

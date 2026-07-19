@@ -59,42 +59,6 @@ export function useExport() {
     }
   }
 
-  async function exportImage(options = {}) {
-    isExporting.value = true
-    exportProgress.value = '正在生成图片...'
-
-    try {
-      const content = getRenderedHtml()
-      if (!content) {
-        exportProgress.value = '没有内容可导出'
-        return { success: false, error: 'No content to export' }
-      }
-
-      const result = await window.api?.exportImageMarkdown({
-        defaultPath: getBaseName() + '.png',
-        content,
-        theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
-        scale: options.scale || 2
-      })
-
-      if (result?.success) {
-        exportProgress.value = '图片导出成功'
-        return { success: true, filePath: result.filePath }
-      } else if (result?.canceled) {
-        exportProgress.value = '已取消'
-        return { success: false, canceled: true }
-      } else {
-        exportProgress.value = '导出失败: ' + (result?.error || '未知错误')
-        return { success: false, error: result?.error }
-      }
-    } catch (err) {
-      exportProgress.value = '导出失败: ' + err.message
-      return { success: false, error: err.message }
-    } finally {
-      isExporting.value = false
-    }
-  }
-
   async function exportHtml(options = {}) {
     isExporting.value = true
     exportProgress.value = '正在生成 HTML...'
@@ -134,7 +98,6 @@ export function useExport() {
     isExporting,
     exportProgress,
     exportPdf,
-    exportImage,
     exportHtml
   }
 }

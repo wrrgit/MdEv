@@ -19,14 +19,6 @@
             </button>
             <button
               class="type-btn"
-              :class="{ active: exportType === 'image' }"
-              @click="exportType = 'image'"
-            >
-              <span class="type-icon">🖼</span>
-              <span>图片</span>
-            </button>
-            <button
-              class="type-btn"
               :class="{ active: exportType === 'html' }"
               @click="exportType = 'html'"
             >
@@ -53,17 +45,6 @@
                   <input type="number" v-model.number="pdfOptions.marginLeft" step="0.1" min="0" max="2" placeholder="左" />
                   <input type="number" v-model.number="pdfOptions.marginRight" step="0.1" min="0" max="2" placeholder="右" />
                 </div>
-              </div>
-            </div>
-
-            <div v-if="exportType === 'image'" class="image-settings">
-              <div class="form-group">
-                <label>缩放倍率</label>
-                <select v-model.number="imageOptions.scale">
-                  <option :value="1">1x (普通)</option>
-                  <option :value="2">2x (高清)</option>
-                  <option :value="3">3x (超清)</option>
-                </select>
               </div>
             </div>
           </div>
@@ -98,7 +79,7 @@ import { useExport } from '@/composables/useExport'
 import { parseMarkdown } from '@/core/markdown/parser'
 
 const store = useEditorStore()
-const { isExporting, exportProgress, exportPdf, exportImage, exportHtml } = useExport()
+const { isExporting, exportProgress, exportPdf, exportHtml } = useExport()
 
 const exportType = ref(store.exportFormat || 'pdf')
 const exportStatus = ref('')
@@ -111,8 +92,6 @@ const pdfOptions = ref({
   marginRight: 0.75
 })
 
-const imageOptions = ref({ scale: 2 })
-
 const previewHtml = computed(() => {
   return parseMarkdown(store.activeTab?.content || '')
 })
@@ -124,9 +103,6 @@ async function doExport() {
   switch (exportType.value) {
     case 'pdf':
       result = await exportPdf(pdfOptions.value)
-      break
-    case 'image':
-      result = await exportImage(imageOptions.value)
       break
     case 'html':
       result = await exportHtml()
