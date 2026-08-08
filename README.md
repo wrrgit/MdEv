@@ -29,14 +29,6 @@ MdEv 是一款基于 Electron + Vue 3 + CodeMirror 6 构建的 Windows 桌面端
 - **功能完备** — 内置数学公式、代码高亮、Mermaid 图表、PlantUML、目录导航、全文搜索
 - **开箱即用** — 下载即用，无需配置环境，也无需联网
 
-## 界面预览
-
-<div align="center">
-
-![MdEv 欢迎页](./screenshot/搜狗截图20260719214922.png)
-
-![MdEv 主编辑界面](./screenshot/搜狗截图20260719215030.png)
-
 ## 功能特性
 
 ### 编辑器

@@ -29,18 +29,6 @@ MdEv is a Windows desktop Markdown editor built with Electron + Vue 3 + CodeMirr
 - **Feature-Rich** — Built-in math formulas, syntax highlighting, Mermaid diagrams, PlantUML, outline navigation, and full-text search.
 - **Zero Config** — Download and run. No environment setup or internet connection required.
 
-## Screenshots
-
-<div align="center">
-
-![MdEv Welcome Page](./screenshot/搜狗截图20260719214922.png)
-
-![MdEv Main Editor](./screenshot/搜狗截图20260719215030.png)
-
-![MdEv Logo](./logo.png)
-
-</div>
-
 ## Features
 
 ### Editor
