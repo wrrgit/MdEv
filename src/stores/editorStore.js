@@ -20,6 +20,31 @@ export const useEditorStore = defineStore('editor', () => {
   // ── 项目 ──
   const projectRoot = ref(null)
   const fileTree = ref([])
+  const expandedPaths = ref(new Set())
+
+  function isPathExpanded(path) {
+    return expandedPaths.value.has(path)
+  }
+
+  function togglePathExpanded(path) {
+    const s = expandedPaths.value
+    if (s.has(path)) {
+      s.delete(path)
+    } else {
+      s.add(path)
+    }
+    expandedPaths.value = new Set(s)
+  }
+
+  function collapseAllPaths() {
+    expandedPaths.value = new Set()
+  }
+
+  function expandPath(path) {
+    const s = expandedPaths.value
+    s.add(path)
+    expandedPaths.value = new Set(s)
+  }
 
   // ── 搜索 ──
   const searchQuery = ref('')
@@ -195,6 +220,15 @@ export const useEditorStore = defineStore('editor', () => {
     addRecentFolder(path)
   }
 
+  function applyExpandedToTree(nodes) {
+    for (const n of nodes) {
+      if (n.type === 'directory') {
+        n.isExpanded = expandedPaths.value.has(n.path)
+        if (n.children) applyExpandedToTree(n.children)
+      }
+    }
+  }
+
   // ── 持久化 ──
   function loadSettings(saved) {
     if (saved) {
@@ -209,7 +243,9 @@ export const useEditorStore = defineStore('editor', () => {
 
   return {
     tabs, activeTabId, activeTab,
-    projectRoot, fileTree,
+    projectRoot, fileTree, expandedPaths,
+    isPathExpanded, togglePathExpanded, collapseAllPaths, expandPath,
+    applyExpandedToTree,
     searchQuery, searchResults, searchMode,
     showWelcome, sidebarPanel, sidebarVisible, sidebarWidth, showSettings, showExport, showAbout, exportFormat,
     settings,

@@ -4,6 +4,8 @@
       <span class="app-logo">
         <img src="@/assets/logo.png" alt="MdEv" width="24" height="24" class="logo-img" />
       </span>
+      <span class="app-name">MdEv</span>
+      <span class="title-divider"></span>
       <span class="file-name">{{ currentFileName }}</span>
     </div>
     <div class="window-controls">
@@ -64,6 +66,22 @@ const closeWindow = () => window.api?.closeWindow()
 }
 .logo-img {
   display: block;
+}
+.app-name {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--text-primary);
+  background: linear-gradient(135deg, #f56b6b 0%, #ff9a44 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.title-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--border-color);
+  margin: 0 4px;
 }
 .file-name {
   font-size: 12px;

@@ -22,6 +22,15 @@ contextBridge.exposeInMainWorld('api', {
   openFileDialog: () => ipcRenderer.invoke('dialog:openFile'),
   openFolderDialog: () => ipcRenderer.invoke('dialog:openFolder'),
   saveFileDialog: (defaultName) => ipcRenderer.invoke('dialog:saveFile', defaultName),
+  showInputBox: (options) => ipcRenderer.invoke('dialog:showInputBox', options),
+  showFormDialog: (options) => ipcRenderer.invoke('dialog:showFormDialog', options),
+  openImageDialog: () => ipcRenderer.invoke('dialog:openImage'),
+  showTableDialog: () => ipcRenderer.invoke('dialog:showTableDialog'),
+
+  // ── Shell / 路径 ──
+  openPath: (filePath) => ipcRenderer.invoke('shell:openPath', filePath),
+  openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
+  resolvePath: (relativePath, basePath) => ipcRenderer.invoke('file:resolvePath', relativePath, basePath),
 
   // ── 搜索 ──
   searchInProject: (rootPath, query, options) =>
@@ -58,7 +67,7 @@ contextBridge.exposeInMainWorld('api', {
       'menu:export-pdf', 'menu:export-html',
       'menu:find', 'menu:find-global', 'menu:goto-line',
       'menu:view-mode', 'menu:toggle-sidebar', 'menu:settings',
-      'menu:toggle-wordwrap'
+      'menu:toggle-wordwrap', 'menu:undo', 'menu:redo'
     ]
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (_, ...args) => callback(...args))

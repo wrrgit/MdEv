@@ -1,5 +1,6 @@
 <template>
-  <div class="editor-pane" :class="{ 'word-wrap': store.settings.wordWrap }" ref="editorContainer" v-show="store.tabs.length > 0">
+  <div class="editor-pane" :class="{ 'word-wrap': store.settings.wordWrap }" ref="editorContainer" v-show="store.tabs.length > 0"
+    @drop="onDrop" @dragover.prevent @dragenter.prevent>
     <Codemirror
       v-if="store.activeTab"
       :model-value="store.content"
@@ -23,7 +24,7 @@ import { useEditorStore } from '@/stores/editorStore'
 import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightSpecialChars, drawSelection, rectangularSelection } from '@codemirror/view'
 import { EditorState, Compartment, StateEffect } from '@codemirror/state'
 import { defaultHighlightStyle, syntaxHighlighting, indentOnInput, bracketMatching, foldGutter, indentUnit } from '@codemirror/language'
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
+import { defaultKeymap, history, historyKeymap, indentWithTab, undo, redo } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
@@ -39,6 +40,8 @@ const onEditorReady = (payload) => {
   editorView.value = v
   window.editorRef = v
   window.editorStore = store
+  window.editorUndo = () => { undo(v); v.focus() }
+  window.editorRedo = () => { redo(v); v.focus() }
   updateCursorPos(v)
   // vue-codemirror 创建 EditorView 时使用默认 basicSetup，不会应用我们传入的 extensions，
   // 因此 wordWrapCompartment 必须在此通过 appendConfig 注册，并立即套用当前换行设置。
@@ -48,25 +51,6 @@ const onEditorReady = (payload) => {
       wordWrapCompartment.of(store.settings.wordWrap ? EditorView.lineWrapping : [])
     )
   })
-  // 诊断：检查 lineWrapping 是否真正生效
-  setTimeout(() => {
-    try {
-      const ed = document.querySelector('.cm-editor')
-      const ct = document.querySelector('.cm-content')
-      const sc = document.querySelector('.cm-scroller')
-      window.__wwDebug = {
-        wordWrapSetting: store.settings.wordWrap,
-        editorClasses: ed ? ed.className : 'NOT_FOUND',
-        contentClasses: ct ? ct.className : 'NOT_FOUND',
-        contentWhiteSpace: ct ? getComputedStyle(ct).whiteSpace : 'n/a',
-        contentOverflowWrap: ct ? getComputedStyle(ct).overflowWrap : 'n/a',
-        scrollerOverflowX: sc ? getComputedStyle(sc).overflowX : 'n/a'
-      }
-      console.log('[WW-DEBUG]', JSON.stringify(window.__wwDebug))
-    } catch (e) {
-      window.__wwDebug = { error: String(e) }
-    }
-  }, 300)
 }
 
 const onEditorUpdate = (payload) => {
@@ -106,6 +90,55 @@ function updateCursorPos(view) {
   store.cursorCol = pos - line.from + 1
 }
 
+// ── 拖拽图片插入 ──
+function onDrop(e) {
+  const files = e.dataTransfer?.files
+  if (!files || files.length === 0) return
+  e.preventDefault()
+
+  const v = editorView.value || window.editorRef
+  if (!v) return
+
+  const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'avif']
+
+  for (const file of files) {
+    // Electron: File 对象有 path 属性，包含完整文件路径
+    const filePath = file.path
+    if (!filePath) continue
+
+    const ext = filePath.toLowerCase().match(/\.([^.]+)$/)?.[1] || ''
+    if (!imageExts.includes(ext)) continue
+
+    // 计算相对路径
+    const basePath = store.activeTab?.filePath
+      ? store.activeTab.filePath.replace(/[\\/][^\\/]+$/, '')
+      : store.projectRoot || ''
+    let imgPath = filePath
+    if (basePath) {
+      const norm = (p) => p.replace(/\\/g, '/').replace(/\/+$/, '')
+      const baseParts = norm(basePath).split('/')
+      const targetParts = norm(filePath).split('/')
+      let i = 0
+      while (i < baseParts.length && i < targetParts.length &&
+        baseParts[i].toLowerCase() === targetParts[i].toLowerCase()) i++
+      const up = baseParts.length - i
+      const rest = targetParts.slice(i)
+      const parts = []
+      for (let j = 0; j < up; j++) parts.push('..')
+      parts.push(...rest)
+      imgPath = parts.join('/')
+    }
+
+    const fileName = filePath.split(/[\\/]/).pop().replace(/\.[^.]+$/, '')
+    const pos = v.state.selection.main.head
+    v.dispatch({
+      changes: { from: pos, insert: `![${fileName}](${imgPath})\n` },
+      selection: { anchor: pos + 2, head: pos + 2 + fileName.length }
+    })
+  }
+  v.focus()
+}
+
 const onContentChange = (val) => {
   store.content = val
 }
@@ -135,7 +168,47 @@ const baseExtensions = [
     ...defaultKeymap,
     ...historyKeymap,
     ...searchKeymap,
-    ...closeBracketsKeymap
+    ...closeBracketsKeymap,
+    {
+      key: 'Ctrl-m',
+      run: (view) => {
+        const sel = view.state.selection.main
+        const text = view.state.sliceDoc(sel.from, sel.to)
+        if (text) {
+          view.dispatch({
+            changes: [
+              { from: sel.from, insert: '$' },
+              { from: sel.to, insert: '$' }
+            ],
+            selection: { anchor: sel.from + 1, head: sel.to + 1 }
+          })
+        } else {
+          view.dispatch({
+            changes: { from: sel.from, insert: '$$' },
+            selection: { anchor: sel.from + 1 }
+          })
+        }
+        view.focus()
+        return true
+      }
+    },
+    {
+      key: 'Ctrl-Shift-m',
+      run: (view) => {
+        const sel = view.state.selection.main
+        const text = view.state.sliceDoc(sel.from, sel.to)
+        if (text) {
+          view.dispatch({ changes: { from: sel.from, to: sel.to, insert: '$$\n' + text + '\n$$' } })
+        } else {
+          view.dispatch({
+            changes: { from: sel.from, insert: '$$\n\n$$' },
+            selection: { anchor: sel.from + 4 }
+          })
+        }
+        view.focus()
+        return true
+      }
+    }
   ])
 ]
 

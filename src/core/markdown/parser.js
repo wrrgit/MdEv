@@ -2,12 +2,84 @@ import MarkdownIt from 'markdown-it'
 import markdownItAnchor from 'markdown-it-anchor'
 import markdownItTaskLists from 'markdown-it-task-lists'
 import markdownItTexMath from 'markdown-it-texmath'
+import markdownItSub from 'markdown-it-sub'
+import markdownItSup from 'markdown-it-sup'
+import markdownItMark from 'markdown-it-mark'
+import markdownItFootnote from 'markdown-it-footnote'
+import markdownItContainer from 'markdown-it-container'
 import DOMPurify from 'dompurify'
-import hljs from 'highlight.js'
-import katex from 'katex'
-import 'katex/dist/katex.min.css'
+import hljs from 'highlight.js/lib/core'
+import javascript from 'highlight.js/lib/languages/javascript'
+import typescript from 'highlight.js/lib/languages/typescript'
+import python from 'highlight.js/lib/languages/python'
+import java from 'highlight.js/lib/languages/java'
+import c from 'highlight.js/lib/languages/c'
+import cpp from 'highlight.js/lib/languages/cpp'
+import css from 'highlight.js/lib/languages/css'
+import xml from 'highlight.js/lib/languages/xml'
+import json from 'highlight.js/lib/languages/json'
+import bash from 'highlight.js/lib/languages/bash'
+import sql from 'highlight.js/lib/languages/sql'
+import yaml from 'highlight.js/lib/languages/yaml'
+import mdLang from 'highlight.js/lib/languages/markdown'
+import diff from 'highlight.js/lib/languages/diff'
+import shell from 'highlight.js/lib/languages/shell'
+import go from 'highlight.js/lib/languages/go'
+import rust from 'highlight.js/lib/languages/rust'
+import kotlin from 'highlight.js/lib/languages/kotlin'
+import dart from 'highlight.js/lib/languages/dart'
+import lua from 'highlight.js/lib/languages/lua'
+import ini from 'highlight.js/lib/languages/ini'
+import dockerfile from 'highlight.js/lib/languages/dockerfile'
+import plaintext from 'highlight.js/lib/languages/plaintext'
+import plantumlEncoder from 'plantuml-encoder'
+import 'highlight.js/styles/github.css'
+
+hljs.registerLanguage('javascript', javascript)
+hljs.registerLanguage('js', javascript)
+hljs.registerLanguage('typescript', typescript)
+hljs.registerLanguage('ts', typescript)
+hljs.registerLanguage('python', python)
+hljs.registerLanguage('py', python)
+hljs.registerLanguage('java', java)
+hljs.registerLanguage('c', c)
+hljs.registerLanguage('cpp', cpp)
+hljs.registerLanguage('c++', cpp)
+hljs.registerLanguage('css', css)
+hljs.registerLanguage('xml', xml)
+hljs.registerLanguage('html', xml)
+hljs.registerLanguage('svg', xml)
+hljs.registerLanguage('json', json)
+hljs.registerLanguage('bash', bash)
+hljs.registerLanguage('sh', bash)
+hljs.registerLanguage('sql', sql)
+hljs.registerLanguage('yaml', yaml)
+hljs.registerLanguage('yml', yaml)
+hljs.registerLanguage('markdown', mdLang)
+hljs.registerLanguage('md', mdLang)
+hljs.registerLanguage('diff', diff)
+hljs.registerLanguage('shell', shell)
+hljs.registerLanguage('go', go)
+hljs.registerLanguage('rust', rust)
+hljs.registerLanguage('kotlin', kotlin)
+hljs.registerLanguage('dart', dart)
+hljs.registerLanguage('lua', lua)
+hljs.registerLanguage('ini', ini)
+hljs.registerLanguage('toml', ini)
+hljs.registerLanguage('dockerfile', dockerfile)
+hljs.registerLanguage('plaintext', plaintext)
+hljs.registerLanguage('text', plaintext)
+
+let katexModule = null
+
+async function loadKatex() {
+  if (katexModule) return katexModule
+  katexModule = (await import('katex')).default
+  return katexModule
+}
 
 let md = null
+let mdKatexReady = false
 
 function createMarkdownParser() {
   if (md) return md
@@ -16,11 +88,19 @@ function createMarkdownParser() {
     html: true,
     linkify: true,
     typographer: true,
-    breaks: false,
+    breaks: true,
     langPrefix: 'language-',
     highlight: function (str, lang) {
       if (lang === 'mermaid') {
         return `<div class="mermaid">${str}</div>`
+      }
+      if (lang === 'plantuml') {
+        try {
+          const encoded = plantumlEncoder.encode(str)
+          return `<div class="plantuml-container"><img src="https://www.plantuml.com/plantuml/svg/${encoded}" alt="PlantUML diagram" class="plantuml-diagram" loading="lazy" /><details class="plantuml-source"><summary>PlantUML 源码</summary><pre><code>${md.utils.escapeHtml(str)}</code></pre></details></div>`
+        } catch {
+          return `<pre class="hljs"><code class="language-plantuml">${md.utils.escapeHtml(str)}</code></pre>`
+        }
       }
       if (lang && hljs.getLanguage(lang)) {
         try {
@@ -40,32 +120,118 @@ function createMarkdownParser() {
 
   md.use(markdownItTaskLists, { enabled: true, label: true })
 
-  md.use(markdownItTexMath, {
-    engine: katex,
-    delimiters: ['dollars'],
-    katexOptions: { throwOnError: false, output: 'html' }
+  // 下标、上标、高亮
+  md.use(markdownItSub)
+  md.use(markdownItSup)
+  md.use(markdownItMark)
+
+  // 脚注
+  md.use(markdownItFootnote)
+
+  // Admonition / Callout 容器
+  md.use(markdownItContainer, 'note', {
+    render(tokens, idx) {
+      if (tokens[idx].nesting === 1) {
+        return '<div class="admonition admonition-note"><p class="admonition-title">📝 Note</p>\n'
+      } else {
+        return '</div>\n'
+      }
+    }
+  })
+  md.use(markdownItContainer, 'tip', {
+    render(tokens, idx) {
+      if (tokens[idx].nesting === 1) {
+        return '<div class="admonition admonition-tip"><p class="admonition-title">💡 Tip</p>\n'
+      } else {
+        return '</div>\n'
+      }
+    }
+  })
+  md.use(markdownItContainer, 'warning', {
+    render(tokens, idx) {
+      if (tokens[idx].nesting === 1) {
+        return '<div class="admonition admonition-warning"><p class="admonition-title">⚠ Warning</p>\n'
+      } else {
+        return '</div>\n'
+      }
+    }
+  })
+  md.use(markdownItContainer, 'danger', {
+    render(tokens, idx) {
+      if (tokens[idx].nesting === 1) {
+        return '<div class="admonition admonition-danger"><p class="admonition-title">🔴 Danger</p>\n'
+      } else {
+        return '</div>\n'
+      }
+    }
   })
 
   return md
 }
 
-function preprocessMermaid(content) {
-  // Mermaid blocks are handled in the highlight function
-  return content
+async function ensureKatexPlugin() {
+  if (mdKatexReady) return
+  if (!md) createMarkdownParser()
+  const katex = await loadKatex()
+  await import('katex/dist/katex.min.css')
+  md.use(markdownItTexMath, {
+    engine: katex,
+    delimiters: ['dollars'],
+    katexOptions: { throwOnError: false, output: 'html' }
+  })
+  mdKatexReady = true
 }
 
-export function parseMarkdown(content) {
+// ── 解析相对图片路径为 file:// 绝对路径 ──
+function resolvePathStr(base, relative) {
+  const norm = (p) => p.replace(/\\/g, '/').replace(/\/+$/, '')
+  const baseParts = norm(base).split('/')
+  const relParts = norm(relative).split('/')
+  for (const part of relParts) {
+    if (part === '.' || part === '') continue
+    if (part === '..') { baseParts.pop(); continue }
+    baseParts.push(part)
+  }
+  return baseParts.join('/')
+}
+
+function resolveImagePaths(content, context) {
+  const basePath = context?.filePath
+    ? context.filePath.replace(/[\\/][^\\/]+$/, '')
+    : context?.projectRoot || ''
+  if (!basePath) return content
+
+  return content.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, path) => {
+    // 跳过已经是绝对 URL 的路径
+    if (/^(https?:|file:|data:)/i.test(path.trim())) return match
+    // 解析相对路径
+    const abs = resolvePathStr(basePath, path.trim())
+    if (!abs) return match
+    // 转换为 mdimg:// URL (自定义协议，由主进程处理)
+    const fileUrl = 'mdimg:///' + abs.replace(/^\/+/, '').replace(/\\/g, '/')
+    return `![${alt}](${fileUrl})`
+  })
+}
+
+export async function parseMarkdown(content, context = {}) {
   if (!content) return '<p style="color: var(--text-muted);">开始写作...</p>'
 
   try {
     const parser = createMarkdownParser()
-    const processed = preprocessMermaid(content)
+
+    // 解析相对图片路径
+    let processed = resolveImagePaths(content, context)
+
+    const hasLatex = /\$[^$]+\$|\$\$[^$]+\$\$/.test(processed)
+    if (hasLatex) {
+      await ensureKatexPlugin()
+    }
+
     let html = parser.render(processed)
 
-    // Sanitize HTML
     html = DOMPurify.sanitize(html, {
-      ADD_TAGS: ['math', 'semantics', 'annotation', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'msqrt', 'mover', 'munder', 'mtable', 'mtr', 'mtd'],
-      ADD_ATTR: ['xmlns', 'data-*', 'aria-*']
+      ADD_TAGS: ['math', 'semantics', 'annotation', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'msqrt', 'mover', 'munder', 'mtable', 'mtr', 'mtd', 'details', 'summary'],
+      ADD_ATTR: ['xmlns', 'data-*', 'aria-*', 'loading', 'class', 'src', 'alt', 'title']
     })
 
     return html

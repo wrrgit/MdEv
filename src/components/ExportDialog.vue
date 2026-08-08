@@ -12,7 +12,7 @@
             <button
               class="type-btn"
               :class="{ active: exportType === 'pdf' }"
-              @click="exportType = 'pdf'"
+              @click="switchType('pdf')"
             >
               <span class="type-icon">📄</span>
               <span>PDF</span>
@@ -20,7 +20,7 @@
             <button
               class="type-btn"
               :class="{ active: exportType === 'html' }"
-              @click="exportType = 'html'"
+              @click="switchType('html')"
             >
               <span class="type-icon">🌐</span>
               <span>HTML</span>
@@ -45,6 +45,20 @@
                   <input type="number" v-model.number="pdfOptions.marginLeft" step="0.1" min="0" max="2" placeholder="左" />
                   <input type="number" v-model.number="pdfOptions.marginRight" step="0.1" min="0" max="2" placeholder="右" />
                 </div>
+              </div>
+            </div>
+            <div v-else class="html-settings">
+              <div class="form-group">
+                <label class="toggle-label">
+                  <input type="checkbox" v-model="htmlOptions.standalone" />
+                  <span>独立文件（内联样式）</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label class="toggle-label">
+                  <input type="checkbox" v-model="htmlOptions.includeMermaid" />
+                  <span>包含 Mermaid 图表</span>
+                </label>
               </div>
             </div>
           </div>
@@ -73,7 +87,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, watch, watchEffect } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
 import { useExport } from '@/composables/useExport'
 import { parseMarkdown } from '@/core/markdown/parser'
@@ -83,6 +97,7 @@ const { isExporting, exportProgress, exportPdf, exportHtml } = useExport()
 
 const exportType = ref(store.exportFormat || 'pdf')
 const exportStatus = ref('')
+const previewHtml = ref('')
 
 const pdfOptions = ref({
   pageSize: 'A4',
@@ -92,9 +107,32 @@ const pdfOptions = ref({
   marginRight: 0.75
 })
 
-const previewHtml = computed(() => {
-  return parseMarkdown(store.activeTab?.content || '')
+const htmlOptions = ref({
+  standalone: true,
+  includeMermaid: true
 })
+
+// 打开弹窗时同步 exportType
+watch(() => store.showExport, (visible) => {
+  if (visible) {
+    exportType.value = store.exportFormat || 'pdf'
+    exportStatus.value = ''
+  }
+})
+
+// 异步渲染预览
+watch(() => [store.showExport, exportType.value, store.content], async () => {
+  if (!store.showExport) return
+  previewHtml.value = await parseMarkdown(store.content, {
+    filePath: store.activeTab?.filePath,
+    projectRoot: store.projectRoot
+  })
+}, { immediate: true })
+
+function switchType(type) {
+  exportType.value = type
+  store.exportFormat = type
+}
 
 async function doExport() {
   exportStatus.value = ''
@@ -135,7 +173,7 @@ function close() {
 }
 .export-dialog {
   width: 740px;
-  max-height: 85vh;
+  height: 520px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 12px;
@@ -149,6 +187,7 @@ function close() {
   justify-content: space-between;
   padding: 16px 24px;
   border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 .export-header h2 { margin: 0; font-size: 18px; }
 .close-btn {
@@ -163,8 +202,9 @@ function close() {
   padding: 24px;
   overflow: hidden;
   flex: 1;
+  min-height: 0;
 }
-.export-options { width: 300px; flex-shrink: 0; }
+.export-options { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; }
 .export-type {
   display: flex;
   gap: 8px;
@@ -186,9 +226,9 @@ function close() {
   transition: all 0.15s;
 }
 .type-btn:hover { border-color: var(--accent-color); color: var(--text-primary); }
-.type-btn.active { border-color: var(--accent-color); color: var(--accent-color); background: var(--accent-color)10; }
+.type-btn.active { border-color: var(--accent-color); color: var(--accent-color); }
 .type-icon { font-size: 24px; }
-.export-settings { }
+.export-settings { flex: 1; }
 .form-group { margin-bottom: 16px; }
 .form-group label {
   display: block;
@@ -209,11 +249,21 @@ function close() {
 }
 .row { display: flex; gap: 8px; }
 .row input { width: 60px; text-align: center; }
+.toggle-label {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.toggle-label input[type="checkbox"] {
+  accent-color: var(--accent-color);
+}
 .export-preview {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 0;
 }
 .preview-label {
   font-size: 12px;
@@ -233,6 +283,7 @@ function close() {
   font-size: 13px;
   color: var(--text-secondary);
   border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 .export-footer {
   display: flex;
@@ -240,6 +291,7 @@ function close() {
   gap: 8px;
   padding: 16px 24px;
   border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 .btn {
   padding: 8px 20px;

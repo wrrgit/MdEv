@@ -109,6 +109,7 @@ async function openFolder() {
   if (folderPath) {
     const result = await window.api?.readDirectory(folderPath)
     if (result?.success) {
+      store.collapseAllPaths()
       store.fileTree = result.tree
       store.setProjectRoot(folderPath)
     }
@@ -126,6 +127,7 @@ async function openRecentFile(file) {
 async function openRecentFolder(folder) {
   const result = await window.api?.readDirectory(folder.path)
   if (result?.success) {
+    store.collapseAllPaths()
     store.fileTree = result.tree
     store.setProjectRoot(folder.path)
   }

@@ -29,13 +29,28 @@
               </select>
             </div>
             <div class="form-group">
+              <label>默认视图</label>
+              <select v-model="localSettings.viewMode">
+                <option value="dual">双栏模式</option>
+                <option value="edit">纯编辑模式</option>
+                <option value="preview">纯预览模式</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 编辑器 -->
+          <div v-show="activeSection === 'editor'" class="settings-form">
+            <div class="form-group">
               <label>编辑器字体</label>
               <select v-model="localSettings.editorFontFamily">
-                <option value="'JetBrains Mono', monospace">JetBrains Mono</option>
+                <option value="'JetBrains Mono', 'Cascadia Code', monospace">JetBrains Mono</option>
                 <option value="'Cascadia Code', monospace">Cascadia Code</option>
                 <option value="'Fira Code', monospace">Fira Code</option>
                 <option value="'Source Code Pro', monospace">Source Code Pro</option>
+                <option value="'Menlo', 'Monaco', monospace">Menlo / Monaco</option>
                 <option value="'Consolas', monospace">Consolas</option>
+                <option value="'Courier New', monospace">Courier New</option>
+                <option value="'Sarasa Mono SC', monospace">更纱黑体 (Sarasa)</option>
                 <option value="monospace">系统默认等宽</option>
               </select>
             </div>
@@ -43,28 +58,6 @@
               <label>编辑器字号 ({{ localSettings.editorFontSize }}px)</label>
               <input type="range" v-model.number="localSettings.editorFontSize" min="12" max="32" step="1" />
             </div>
-            <div class="form-group">
-              <label>预览字体</label>
-              <select v-model="localSettings.previewFontFamily">
-                <option value="-apple-system, 'Microsoft YaHei', sans-serif">系统默认</option>
-                <option value="'Microsoft YaHei', sans-serif">微软雅黑</option>
-                <option value="'PingFang SC', sans-serif">苹方</option>
-                <option value="'Noto Sans SC', sans-serif">Noto Sans SC</option>
-                <option value="'Songti SC', serif">宋体</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>预览字号 ({{ localSettings.previewFontSize }}px)</label>
-              <input type="range" v-model.number="localSettings.previewFontSize" min="12" max="32" step="1" />
-            </div>
-            <div class="form-group">
-              <label>行高 ({{ localSettings.lineHeight }})</label>
-              <input type="range" v-model.number="localSettings.lineHeight" min="1.2" max="2.0" step="0.1" />
-            </div>
-          </div>
-
-          <!-- 编辑器 -->
-          <div v-show="activeSection === 'editor'" class="settings-form">
             <div class="form-group">
               <label>Tab 大小</label>
               <select v-model.number="localSettings.tabSize">
@@ -108,18 +101,35 @@
           <!-- 预览 -->
           <div v-show="activeSection === 'preview'" class="settings-form">
             <div class="form-group">
+              <label>预览字体</label>
+              <select v-model="localSettings.previewFontFamily">
+                <option value="-apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif">系统默认</option>
+                <option value="'Microsoft YaHei', sans-serif">微软雅黑</option>
+                <option value="'PingFang SC', sans-serif">苹方 (PingFang)</option>
+                <option value="'Noto Sans SC', sans-serif">思源黑体 (Noto Sans)</option>
+                <option value="'Noto Serif SC', serif">思源宋体 (Noto Serif)</option>
+                <option value="'Songti SC', 'SimSun', serif">宋体</option>
+                <option value="'KaiTi', 'STKaiti', serif">楷体</option>
+                <option value="'Heiti SC', sans-serif">黑体</option>
+                <option value="'Georgia', serif">Georgia</option>
+                <option value="'Times New Roman', serif">Times New Roman</option>
+                <option value="'Arial', sans-serif">Arial</option>
+                <option value="'Helvetica', sans-serif">Helvetica</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>预览字号 ({{ localSettings.previewFontSize }}px)</label>
+              <input type="range" v-model.number="localSettings.previewFontSize" min="12" max="32" step="1" />
+            </div>
+            <div class="form-group">
+              <label>行高 ({{ localSettings.lineHeight }})</label>
+              <input type="range" v-model.number="localSettings.lineHeight" min="1.2" max="2.0" step="0.1" />
+            </div>
+            <div class="form-group">
               <label class="toggle-label">
                 <input type="checkbox" v-model="localSettings.scrollSync" />
                 <span>同步滚动</span>
               </label>
-            </div>
-            <div class="form-group">
-              <label>默认视图</label>
-              <select v-model="localSettings.viewMode">
-                <option value="dual">双栏模式</option>
-                <option value="edit">纯编辑模式</option>
-                <option value="preview">纯预览模式</option>
-              </select>
             </div>
           </div>
 
@@ -196,7 +206,7 @@ function saveAndClose() {
 }
 .settings-panel {
   width: 720px;
-  max-height: 80vh;
+  height: 480px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 12px;
@@ -210,6 +220,7 @@ function saveAndClose() {
   justify-content: space-between;
   padding: 16px 24px;
   border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 .settings-header h2 { margin: 0; font-size: 18px; }
 .close-btn {
@@ -226,6 +237,7 @@ function saveAndClose() {
   display: flex;
   flex: 1;
   overflow: hidden;
+  min-height: 0;
 }
 .settings-nav {
   width: 140px;
@@ -289,6 +301,7 @@ function saveAndClose() {
   gap: 8px;
   padding: 16px 24px;
   border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 .btn {
   padding: 8px 20px;

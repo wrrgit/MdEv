@@ -22,6 +22,14 @@
   --scrollbar-bg: #f0f0f0;
   --scrollbar-thumb: #c1c7cd;
 
+  --icon-folder-fill: #dcb67a;
+  --icon-folder-stroke: #c0925a;
+  --icon-folder-open-fill: #e8c988;
+  --tree-selected-bg: rgba(3, 102, 214, 0.1);
+  --tree-selected-hover-bg: rgba(3, 102, 214, 0.16);
+  --tree-selected-fg: #24292e;
+  --tree-indent-guide: #e1e4e8;
+
   --editor-font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
   --preview-font-family: -apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif;
   --editor-font-size: 15px;
@@ -51,6 +59,14 @@
   --accent-color: #58a6ff;
   --scrollbar-bg: #21262d;
   --scrollbar-thumb: #484f58;
+
+  --icon-folder-fill: #8b7b58;
+  --icon-folder-stroke: #6e6040;
+  --icon-folder-open-fill: #7a6c4e;
+  --tree-selected-bg: rgba(88, 166, 255, 0.12);
+  --tree-selected-hover-bg: rgba(88, 166, 255, 0.18);
+  --tree-selected-fg: #c9d1d9;
+  --tree-indent-guide: #30363d;
 
   --editor-font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
   --preview-font-family: -apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif;

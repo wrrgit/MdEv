@@ -98,7 +98,22 @@ export default defineConfig(({ command, mode }) => {
     },
     build: {
       outDir: 'dist',
-      emptyOutDir: true
+      emptyOutDir: true,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'codemirror': [
+              'codemirror', '@codemirror/view', '@codemirror/state',
+              '@codemirror/language', '@codemirror/commands',
+              '@codemirror/search', '@codemirror/autocomplete',
+              '@codemirror/lang-markdown', '@codemirror/theme-one-dark',
+              '@codemirror/lang-json'
+            ],
+            'markdown': ['markdown-it', 'markdown-it-anchor', 'markdown-it-task-lists', 'markdown-it-texmath'],
+            'vendor': ['vue', 'pinia', 'dompurify']
+          }
+        }
+      }
     }
   }
 })

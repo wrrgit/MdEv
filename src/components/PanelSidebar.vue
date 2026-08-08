@@ -11,19 +11,113 @@
       >
         <span v-html="panel.icon"></span>
       </button>
+      <div class="sidebar-tabs-spacer"></div>
+      <button
+        class="sidebar-tab font-btn"
+        @click="decreaseFontSize"
+        title="缩小字体"
+      >
+        <span class="font-label-small">A</span><span class="font-suffix">−</span>
+      </button>
+      <button
+        class="sidebar-tab font-btn"
+        @click="increaseFontSize"
+        title="增大字体"
+      >
+        <span class="font-label-large">A</span><span class="font-suffix">+</span>
+      </button>
+      <button
+        class="sidebar-tab theme-toggle-btn"
+        @click="cycleTheme"
+        :title="themeTooltip"
+      >
+        <span v-html="themeIcon"></span>
+      </button>
+      <button
+        class="sidebar-tab settings-tab"
+        @click="store.showSettings = true"
+        title="设置"
+      >
+        <span v-html="settingsIcon"></span>
+      </button>
     </div>
     <div class="sidebar-content">
       <div v-if="store.sidebarPanel === 'filetree'" class="sidebar-panel">
-        <div class="panel-header">
-          <span>文件</span>
-          <button class="panel-action" @click="openFolder" title="打开文件夹">📂</button>
+        <div v-if="store.projectRoot" class="panel-header">
+          <div class="project-root-info" @click="toggleRootExpand" :title="store.projectRoot">
+            <span class="root-arrow" :class="{ collapsed: !store.isPathExpanded(store.projectRoot) }">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M5.7 13.7a1 1 0 0 1 0-1.4L9.58 8 5.7 3.7a1 1 0 0 1 1.4-1.4l4.59 4.58a1 1 0 0 1 0 1.41L7.12 12.7a1 1 0 0 1-1.41 0z"/></svg>
+            </span>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="opacity:0.6;flex-shrink:0"><path d="M1.5 2.5h4.3l1.2 1.5h7.5v9.5H1.5V2.5z"/><path d="M1.5 5h13l-1.5 8.5H3L1.5 5z"/></svg>
+            <span class="project-root-name">{{ projectRootName }}</span>
+          </div>
+          <div class="panel-header-actions">
+            <button class="panel-action-btn" @click="onNewFile" title="新建文件">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M12 7H9V4a1 1 0 00-2 0v3H4a1 1 0 000 2h3v3a1 1 0 002 0V9h3a1 1 0 000-2z"/></svg>
+            </button>
+            <button class="panel-action-btn" @click="onNewFolder" title="新建文件夹">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 2.5h4.3l1.2 1.5H14a1 1 0 011 1v8a1 1 0 01-1 1H2a1 1 0 01-1-1V3a.5.5 0 01.5-.5zm8.5 5h-2v2H7v-2H5V6h2V4h1v2h2v1z"/></svg>
+            </button>
+            <button class="panel-action-btn" @click="openFolder" title="打开文件夹">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a1 1 0 00-.7.3L4.58 4H2a2 2 0 00-2 2v7a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2.58L8.7 1.3A1 1 0 008 1zm0 1.41l2.3 2.3a1 1 0 00.7.29H14a1 1 0 011 1v7a1 1 0 01-1 1H2a1 1 0 01-1-1V6a1 1 0 011-1h2a1 1 0 00.7-.3L8 2.42z"/></svg>
+            </button>
+          </div>
         </div>
-        <div class="file-tree" v-if="store.fileTree.length > 0">
+        <div class="panel-header" v-else>
+          <span class="panel-header-title">文件</span>
+          <div class="panel-header-actions">
+            <button class="panel-action-btn" @click="openFolder" title="打开文件夹">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a1 1 0 00-.7.3L4.58 4H2a2 2 0 00-2 2v7a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2.58L8.7 1.3A1 1 0 008 1zm0 1.41l2.3 2.3a1 1 0 00.7.29H14a1 1 0 011 1v7a1 1 0 01-1 1H2a1 1 0 01-1-1V6a1 1 0 011-1h2a1 1 0 00.7-.3L8 2.42z"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="file-tree-area" v-if="store.fileTree.length > 0 && store.isPathExpanded(store.projectRoot)">
           <FileTree :nodes="store.fileTree" :depth="0" />
         </div>
-        <div class="empty-state" v-else>
-          <p>打开文件夹以浏览文件</p>
+        <div class="empty-state" v-else-if="store.fileTree.length === 0">
+          <div class="empty-icon">
+            <svg width="48" height="48" viewBox="0 0 16 16" fill="var(--text-muted)" opacity="0.4">
+              <path d="M1.5 2.5h4.3l1.2 1.5h7.5v9.5H1.5V2.5z"/>
+              <path d="M1.5 5h13l-1.5 8.5H3L1.5 5z"/>
+            </svg>
+          </div>
+          <p class="empty-text">打开文件夹以浏览文件</p>
           <button class="open-folder-btn" @click="openFolder">打开文件夹</button>
+        </div>
+      </div>
+
+      <div v-if="store.sidebarPanel === 'recent'" class="sidebar-panel">
+        <div class="panel-header">
+          <span class="panel-header-title">最近打开</span>
+        </div>
+        <div class="recent-content">
+          <div v-if="store.recentFolders.length > 0" class="recent-section">
+            <div class="recent-section-title">文件夹</div>
+            <div
+              v-for="folder in store.recentFolders"
+              :key="folder.path"
+              class="recent-item"
+              @click="openRecentFolder(folder.path)"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="opacity:0.6;flex-shrink:0"><path d="M1.5 2.5h4.3l1.2 1.5h7.5v9.5H1.5V2.5z"/><path d="M1.5 5h13l-1.5 8.5H3L1.5 5z"/></svg>
+              <span class="recent-item-name" :title="folder.path">{{ folder.folderName }}</span>
+            </div>
+          </div>
+          <div v-if="store.recentFiles.length > 0" class="recent-section">
+            <div class="recent-section-title">文件</div>
+            <div
+              v-for="file in store.recentFiles"
+              :key="file.path"
+              class="recent-item"
+              @click="openRecentFile(file.path)"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="opacity:0.6;flex-shrink:0"><path d="M3 1a1 1 0 00-1 1v12a1 1 0 001 1h10a1 1 0 001-1V5.5L9.5 1H3z"/><path d="M9 1.5V5h4.5L9 1.5z" opacity="0.3"/></svg>
+              <span class="recent-item-name" :title="file.path">{{ file.fileName }}</span>
+            </div>
+          </div>
+          <div v-if="store.recentFiles.length === 0 && store.recentFolders.length === 0" class="empty-state">
+            <p>暂无最近打开记录</p>
+          </div>
         </div>
       </div>
 
@@ -93,6 +187,94 @@ const searchResults = ref([])
 const hasTabs = computed(() => store.tabs.length > 0)
 const hasFileTree = computed(() => store.fileTree.length > 0)
 
+const projectRootName = computed(() => {
+  if (!store.projectRoot) return ''
+  return store.projectRoot.split(/[\\/]/).pop()
+})
+
+// ── 主题切换 ──
+const sunIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.05" y2="7.05"/><line x1="16.95" y1="16.95" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.05" y2="16.95"/><line x1="16.95" y1="7.05" x2="19.07" y2="4.93"/></svg>'
+const moonIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>'
+
+const settingsIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.6 5.6l2.1 2.1M17.3 16.3l2.1 2.1M2 12h3M19 12h3M5.6 19.4l2.1-2.1M16.3 6.7l2.1-2.1"/></svg>'
+
+const resolvedTheme = computed(() => {
+  if (store.settings.theme === 'system') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  }
+  return store.settings.theme
+})
+
+const themeIcon = computed(() => {
+  return resolvedTheme.value === 'dark' ? sunIcon : moonIcon
+})
+
+const themeTooltip = computed(() => {
+  const map = { light: '浅色', dark: '深色', system: '跟随系统' }
+  return `当前：${map[store.settings.theme] || '浅色'}，点击切换`
+})
+
+function cycleTheme() {
+  const order = ['light', 'dark', 'system']
+  const idx = order.indexOf(store.settings.theme)
+  store.settings.theme = order[(idx + 1) % order.length]
+}
+
+function increaseFontSize() {
+  const s = store.settings
+  s.editorFontSize = Math.min(32, s.editorFontSize + 1)
+  s.previewFontSize = Math.min(32, s.previewFontSize + 1)
+}
+
+function decreaseFontSize() {
+  const s = store.settings
+  s.editorFontSize = Math.max(10, s.editorFontSize - 1)
+  s.previewFontSize = Math.max(10, s.previewFontSize - 1)
+}
+
+async function onNewFile() {
+  if (!store.projectRoot) return
+  const name = await window.api?.showInputBox({ title: '新建文件', label: '文件名：', value: 'untitled.md' })
+  if (!name) return
+  const sep = store.projectRoot.includes('/') ? '/' : '\\'
+  const filePath = store.projectRoot + sep + name
+  const exists = await window.api?.exists(filePath)
+  if (exists) {
+    alert('文件已存在')
+    return
+  }
+  const result = await window.api?.createFile(filePath)
+  if (result?.success) {
+    await refreshTree()
+  }
+}
+
+async function onNewFolder() {
+  if (!store.projectRoot) return
+  const name = await window.api?.showInputBox({ title: '新建文件夹', label: '文件夹名：', value: 'new-folder' })
+  if (!name) return
+  const sep = store.projectRoot.includes('/') ? '/' : '\\'
+  const dirPath = store.projectRoot + sep + name
+  const exists = await window.api?.exists(dirPath)
+  if (exists) {
+    alert('文件夹已存在')
+    return
+  }
+  const result = await window.api?.createDirectory(dirPath)
+  if (result?.success) {
+    await refreshTree()
+  }
+}
+
+async function refreshTree() {
+  if (!store.projectRoot) return
+  const result = await window.api?.readDirectory(store.projectRoot)
+  if (result?.success) {
+    store.applyExpandedToTree(result.tree)
+    store.fileTree = result.tree
+  }
+}
+
 function startSplitDrag(e) {
   e.preventDefault()
   const startX = e.clientX
@@ -118,9 +300,10 @@ function startSplitDrag(e) {
 }
 
 const panels = [
-  { id: 'filetree', label: '文件', icon: '📁' },
-  { id: 'toc', label: '目录', icon: '📑' },
-  { id: 'search', label: '搜索', icon: '🔍' }
+  { id: 'filetree', label: '资源管理器', icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>' },
+  { id: 'recent', label: '最近打开', icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>' },
+  { id: 'toc', label: '目录', icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="5" cy="6" r="1.2" fill="currentColor"/><circle cx="5" cy="12" r="1.2" fill="currentColor"/><circle cx="5" cy="18" r="1.2" fill="currentColor"/></svg>' },
+  { id: 'search', label: '搜索', icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>' }
 ]
 
 const tocItems = computed(() => {
@@ -160,8 +343,6 @@ function stripMarkdown(s) {
 }
 
 function jumpToLine(line) {
-  // window.editorRef 本身即 EditorView 实例（EditorPane onEditorReady 中赋值），
-  // 原代码访问 window.editorRef?.editorView 不存在，导致跳转静默失败
   const editor = window.editorRef
   if (editor) {
     try {
@@ -171,10 +352,7 @@ function jumpToLine(line) {
         scrollIntoView: 'start'
       })
       editor.focus()
-    } catch (e) {
-      window.__tocDebug = window.__tocDebug || {}
-      window.__tocDebug.editorError = String(e)
-    }
+    } catch {}
   }
 }
 
@@ -196,12 +374,6 @@ function scrollToPreviewHeading(item) {
       if (ht && (ht.includes(targetText) || targetText.includes(ht))) { found = h; break }
     }
   }
-  window.__tocDebug = window.__tocDebug || {}
-  window.__tocDebug.preview = {
-    headingCount: headings.length,
-    targetText,
-    found: !!found
-  }
   if (found) {
     const rect = found.getBoundingClientRect()
     const containerRect = previewScroll.getBoundingClientRect()
@@ -212,18 +384,6 @@ function scrollToPreviewHeading(item) {
 }
 
 function onTocItemClick(item) {
-  // 诊断：记录目录点击的运行时状态，便于排查跳转失效
-  const editor = window.editorRef
-  window.__tocDebug = {
-    time: new Date().toISOString(),
-    item: { line: item.line, level: item.level, text: item.text, stripped: stripMarkdown(item.text) },
-    hasEditor: !!editor,
-    editorConstructor: editor ? (editor.constructor?.name || 'unknown') : 'null',
-    docLen: editor ? editor.state.doc.length : 0,
-    cmEditorExists: !!document.querySelector('.cm-editor'),
-    previewScrollExists: !!document.querySelector('.preview-scroll'),
-    viewMode: store.settings.viewMode
-  }
   jumpToLine(item.line)
   scrollToPreviewHeading(item)
 }
@@ -233,9 +393,44 @@ async function openFolder() {
   if (folderPath) {
     const result = await window.api?.readDirectory(folderPath)
     if (result?.success) {
+      store.collapseAllPaths()
       store.fileTree = result.tree
       store.setProjectRoot(folderPath)
+      store.expandPath(folderPath)
     }
+  }
+}
+
+async function openRecentFile(filePath) {
+  if (!filePath) return
+  const ext = filePath.toLowerCase().match(/\.([^.]+)$/)?.[1] || ''
+  const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'avif']
+  if (imageExts.includes(ext)) {
+    await window.api?.openPath(filePath)
+    return
+  }
+  const result = await window.api?.readFile(filePath)
+  if (result?.success) {
+    const fileName = filePath.split(/[\\/]/).pop()
+    store.addTab(filePath, result.content, fileName)
+    store.addRecentFile(filePath)
+  }
+}
+
+async function openRecentFolder(folderPath) {
+  if (!folderPath) return
+  const result = await window.api?.readDirectory(folderPath)
+  if (result?.success) {
+    store.collapseAllPaths()
+    store.fileTree = result.tree
+    store.setProjectRoot(folderPath)
+    store.expandPath(folderPath)
+  }
+}
+
+function toggleRootExpand() {
+  if (store.projectRoot) {
+    store.togglePathExpanded(store.projectRoot)
   }
 }
 
@@ -302,23 +497,56 @@ function highlightMatch(lineContent, matches) {
 .sidebar-tabs {
   display: flex;
   flex-direction: column;
-  width: 36px;
+  width: 40px;
+  padding-top: 4px;
   background: var(--bg-secondary);
   border-right: 1px solid var(--border-color);
   flex-shrink: 0;
+  gap: 2px;
 }
+.sidebar-tabs-spacer {
+  flex: 1;
+}
+.settings-tab,
+.theme-toggle-btn {
+  margin-bottom: 4px;
+}
+.font-btn {
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 12px;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 1px;
+  letter-spacing: 0.5px;
+}
+.font-btn .font-label-small {
+  font-size: 11px;
+}
+.font-btn .font-label-large {
+  font-size: 14px;
+}
+.font-btn .font-suffix {
+  font-size: 11px;
+  font-weight: 400;
+  margin-left: 1px;
+}
+.font-btn:hover { color: var(--accent-color); }
+.theme-toggle-btn:hover { color: #f5a623; }
 .sidebar-tab {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 38px;
   border: none;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 16px;
   position: relative;
+  transition: color 0.15s, background 0.15s;
+  border-radius: 4px;
 }
 .sidebar-tab:hover { color: var(--text-primary); background: var(--hover-bg); }
 .sidebar-tab.active { color: var(--accent-color); }
@@ -326,8 +554,8 @@ function highlightMatch(lineContent, matches) {
   content: '';
   position: absolute;
   left: 0;
-  top: 6px;
-  bottom: 6px;
+  top: 8px;
+  bottom: 8px;
   width: 2px;
   background: var(--accent-color);
   border-radius: 0 2px 2px 0;
@@ -337,6 +565,7 @@ function highlightMatch(lineContent, matches) {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 .sidebar-panel {
   display: flex;
@@ -347,42 +576,111 @@ function highlightMatch(lineContent, matches) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 10px 10px 6px;
+  flex-shrink: 0;
+}
+.panel-header-title {
   font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--border-color);
+  letter-spacing: 0.8px;
 }
-.panel-action {
+.project-root-info {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  min-width: 0;
+  flex: 1;
+}
+.project-root-info:hover {
+  opacity: 0.8;
+}
+.root-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.15s;
+}
+.root-arrow.collapsed {
+  transform: rotate(-90deg);
+}
+.project-root-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.panel-header-actions {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+.panel-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   border: none;
   background: transparent;
   cursor: pointer;
-  font-size: 14px;
   color: var(--text-muted);
-  padding: 2px;
+  border-radius: 4px;
+  padding: 0;
+  transition: color 0.15s, background 0.15s;
 }
-.panel-action:hover { color: var(--text-primary); }
-.file-tree { flex: 1; overflow-y: auto; padding: 4px 0; }
+.panel-action-btn:hover {
+  color: var(--text-primary);
+  background: var(--hover-bg);
+}
+.file-tree-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 8px;
+}
 .empty-state {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 20px;
+  gap: 12px;
+  padding: 32px 20px;
+}
+.empty-icon {
+  opacity: 0.5;
+  margin-bottom: 4px;
+}
+.empty-text {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 13px;
+  text-align: center;
+  line-height: 1.5;
 }
 .open-folder-btn {
-  padding: 6px 16px;
+  padding: 7px 20px;
   border: 1px solid var(--border-color);
   background: var(--bg-primary);
-  color: var(--text-primary);
-  border-radius: 4px;
+  color: var(--accent-color);
+  border-radius: 5px;
   cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.open-folder-btn:hover {
+  background: var(--hover-bg);
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 1px var(--accent-color);
 }
 .toc-content { flex: 1; overflow-y: auto; padding: 4px 0; }
 .toc-item {
@@ -421,6 +719,44 @@ function highlightMatch(lineContent, matches) {
 }
 .search-results { flex: 1; overflow-y: auto; }
 .search-result-item { padding: 4px 8px; border-bottom: 1px solid var(--border-color); }
+
+.recent-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.recent-section {
+  margin-bottom: 8px;
+}
+.recent-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 12px 4px;
+}
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.recent-item:hover {
+  background: var(--hover-bg);
+}
+.recent-item-name {
+  font-size: 13px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-item:hover .recent-item-name {
+  color: var(--text-primary);
+}
 .result-file { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
 .result-line {
   cursor: pointer;

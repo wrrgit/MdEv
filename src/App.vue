@@ -118,6 +118,38 @@ onMounted(async () => {
   watchSettingsChanges()
   startAutoSave()
 
+  // ── 默认打开上次的文件夹和文件 ──
+  if (store.recentFolders.length > 0) {
+    const lastFolder = store.recentFolders[0].path
+    if (lastFolder) {
+      try {
+        const result = await window.api?.readDirectory(lastFolder)
+        if (result?.success) {
+          store.collapseAllPaths()
+          store.fileTree = result.tree
+          store.setProjectRoot(lastFolder)
+          store.expandPath(lastFolder)
+        }
+      } catch {}
+    }
+  }
+  if (store.recentFiles.length > 0) {
+    const lastFile = store.recentFiles[0].path
+    if (lastFile) {
+      try {
+        const ext = lastFile.toLowerCase().match(/\.([^.]+)$/)?.[1] || ''
+        const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'avif']
+        if (!imageExts.includes(ext)) {
+          const result = await window.api?.readFile(lastFile)
+          if (result?.success) {
+            const fileName = lastFile.split(/[\\/]/).pop()
+            store.addTab(lastFile, result.content, fileName)
+          }
+        }
+      } catch {}
+    }
+  }
+
   if (window.api?.onMenuEvent) {
     window.api.onMenuEvent('menu:new-file', () => {
       store.addTab(null, '', '未命名.md')
@@ -125,6 +157,12 @@ onMounted(async () => {
     window.api.onMenuEvent('menu:open-file', async () => {
       const filePath = await window.api.openFileDialog()
       if (filePath) {
+        const ext = filePath.toLowerCase().match(/\.([^.]+)$/)?.[1] || ''
+        const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'avif']
+        if (imageExts.includes(ext)) {
+          await window.api.openPath(filePath)
+          return
+        }
         const result = await window.api.readFile(filePath)
         if (result?.success) {
           const fileName = filePath.split(/[\\/]/).pop()
@@ -138,8 +176,10 @@ onMounted(async () => {
       if (folderPath) {
         const result = await window.api.readDirectory(folderPath)
         if (result?.success) {
+          store.collapseAllPaths()
           store.fileTree = result.tree
           store.setProjectRoot(folderPath)
+          store.expandPath(folderPath)
         }
       }
     })
@@ -169,6 +209,12 @@ onMounted(async () => {
       store.settings.wordWrap = checked
       window.api.setSettings({ settings: { ...store.settings } })
     })
+    window.api.onMenuEvent('menu:undo', () => {
+      if (window.editorUndo) window.editorUndo()
+    })
+    window.api.onMenuEvent('menu:redo', () => {
+      if (window.editorRedo) window.editorRedo()
+    })
   }
 })
 
@@ -178,7 +224,7 @@ onUnmounted(() => {
       'menu:new-file', 'menu:open-file', 'menu:open-folder',
       'menu:save', 'menu:save-as', 'menu:export-pdf', 'menu:export-html',
       'menu:find', 'menu:find-global', 'menu:settings', 'menu:toggle-sidebar',
-      'menu:toggle-wordwrap'
+      'menu:toggle-wordwrap', 'menu:undo', 'menu:redo'
     ]
     channels.forEach(c => window.api.removeMenuListener(c))
   }

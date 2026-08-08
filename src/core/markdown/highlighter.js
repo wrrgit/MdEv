@@ -1,8 +1,7 @@
-import hljs from 'highlight.js'
+import hljs from 'highlight.js/lib/core'
 import 'highlight.js/styles/github.css'
 
 export function setupHighlighter() {
-  // Register custom languages if needed
   return hljs
 }
 

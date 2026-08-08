@@ -8,11 +8,14 @@ export function useExport() {
   const exportProgress = ref('')
 
   // 把当前 tab 的 markdown 渲染成已净化的 HTML（含代码高亮、katex 公式）
-  // 注意：必须传渲染后的 HTML，而非原始 markdown 文本，否则导出内容是源码而非渲染结果
-  function getRenderedHtml() {
+  // parseMarkdown 是异步函数，必须 await，否则拿到的是 Promise 对象而非 HTML 字符串
+  async function getRenderedHtml() {
     const content = store.activeTab?.content || ''
     if (!content) return ''
-    return parseMarkdown(content)
+    return await parseMarkdown(content, {
+      filePath: store.activeTab?.filePath,
+      projectRoot: store.projectRoot
+    })
   }
 
   function getBaseName() {
@@ -24,7 +27,7 @@ export function useExport() {
     exportProgress.value = '正在生成 PDF...'
 
     try {
-      const content = getRenderedHtml()
+      const content = await getRenderedHtml()
       if (!content) {
         exportProgress.value = '没有内容可导出'
         return { success: false, error: 'No content to export' }
@@ -64,7 +67,7 @@ export function useExport() {
     exportProgress.value = '正在生成 HTML...'
 
     try {
-      const content = getRenderedHtml()
+      const content = await getRenderedHtml()
       if (!content) {
         exportProgress.value = '没有内容可导出'
         return { success: false, error: 'No content to export' }
