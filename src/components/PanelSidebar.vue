@@ -89,6 +89,11 @@
       <div v-if="store.sidebarPanel === 'recent'" class="sidebar-panel">
         <div class="panel-header">
           <span class="panel-header-title">最近打开</span>
+          <div class="panel-header-actions" v-if="store.recentFiles.length > 0 || store.recentFolders.length > 0">
+            <button class="panel-action-btn" @click="clearRecent" title="清空列表">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2 0A.5.5 0 0 1 8 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4L4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3h11V2h-11v1z"/></svg>
+            </button>
+          </div>
         </div>
         <div class="recent-content">
           <div v-if="store.recentFolders.length > 0" class="recent-section">
@@ -99,8 +104,11 @@
               class="recent-item"
               @click="openRecentFolder(folder.path)"
             >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="opacity:0.6;flex-shrink:0"><path d="M1.5 2.5h4.3l1.2 1.5h7.5v9.5H1.5V2.5z"/><path d="M1.5 5h13l-1.5 8.5H3L1.5 5z"/></svg>
-              <span class="recent-item-name" :title="folder.path">{{ folder.folderName }}</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="opacity:0.6;flex-shrink:0"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+              <div class="recent-item-info">
+                <span class="recent-item-name">{{ folder.folderName }}</span>
+                <span class="recent-item-path" :title="folder.path">{{ folder.path }}</span>
+              </div>
             </div>
           </div>
           <div v-if="store.recentFiles.length > 0" class="recent-section">
@@ -111,8 +119,11 @@
               class="recent-item"
               @click="openRecentFile(file.path)"
             >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="opacity:0.6;flex-shrink:0"><path d="M3 1a1 1 0 00-1 1v12a1 1 0 001 1h10a1 1 0 001-1V5.5L9.5 1H3z"/><path d="M9 1.5V5h4.5L9 1.5z" opacity="0.3"/></svg>
-              <span class="recent-item-name" :title="file.path">{{ file.fileName }}</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="opacity:0.6;flex-shrink:0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <div class="recent-item-info">
+                <span class="recent-item-name">{{ file.fileName }}</span>
+                <span class="recent-item-path" :title="file.path">{{ file.path }}</span>
+              </div>
             </div>
           </div>
           <div v-if="store.recentFiles.length === 0 && store.recentFolders.length === 0" class="empty-state">
@@ -196,7 +207,7 @@ const projectRootName = computed(() => {
 const sunIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.05" y2="7.05"/><line x1="16.95" y1="16.95" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.05" y2="16.95"/><line x1="16.95" y1="7.05" x2="19.07" y2="4.93"/></svg>'
 const moonIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>'
 
-const settingsIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.6 5.6l2.1 2.1M17.3 16.3l2.1 2.1M2 12h3M19 12h3M5.6 19.4l2.1-2.1M16.3 6.7l2.1-2.1"/></svg>'
+const settingsIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>'
 
 const resolvedTheme = computed(() => {
   if (store.settings.theme === 'system') {
@@ -425,6 +436,14 @@ async function openRecentFolder(folderPath) {
     store.fileTree = result.tree
     store.setProjectRoot(folderPath)
     store.expandPath(folderPath)
+  }
+}
+
+function clearRecent() {
+  if (confirm('确定清空所有最近打开记录吗？')) {
+    store.recentFiles = []
+    store.recentFolders = []
+    window.api?.setSettings({ recentFiles: [], recentFolders: [] })
   }
 }
 
@@ -739,7 +758,7 @@ function highlightMatch(lineContent, matches) {
 .recent-item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   padding: 5px 12px;
   cursor: pointer;
   transition: background 0.1s;
@@ -747,12 +766,28 @@ function highlightMatch(lineContent, matches) {
 .recent-item:hover {
   background: var(--hover-bg);
 }
+.recent-item-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
 .recent-item-name {
   font-size: 13px;
   color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
+}
+.recent-item-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  margin-top: 1px;
 }
 .recent-item:hover .recent-item-name {
   color: var(--text-primary);

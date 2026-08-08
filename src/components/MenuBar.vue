@@ -15,7 +15,7 @@
             v-else-if="item.submenu"
             class="menu-command has-submenu"
             @click.stop
-            @mouseenter="openSubmenu = item.label"
+            @mouseenter="clearSubmenuTimer(); openSubmenu = item.label"
             @mouseleave="closeSubmenuDelayed"
           >
             <span class="cmd-label">{{ item.label }}</span>
@@ -26,11 +26,14 @@
                 <div
                   v-else
                   class="submenu-command"
-                  :class="{ disabled: sub.disabled }"
+                  :class="{ disabled: sub.disabled, 'has-sublabel': sub.sublabel }"
                   :title="sub.title || sub.label"
                   @click.stop="execute(sub)"
                 >
-                  <span class="cmd-label">{{ sub.label }}</span>
+                  <div class="submenu-text">
+                    <span class="cmd-label">{{ sub.label }}</span>
+                    <span class="submenu-sublabel" v-if="sub.sublabel">{{ sub.sublabel }}</span>
+                  </div>
                 </div>
               </template>
             </div>
@@ -51,7 +54,7 @@
     <div class="about-dialog" v-if="store.showAbout" @click.self="closeAbout">
       <div class="about-box">
         <h1 class="about-title">MdEv</h1>
-        <p class="about-version">v0.1.0</p>
+        <p class="about-version">v0.2.0</p>
         <p class="about-desc">Markdown Editor for Windows</p>
         <p class="about-tech">基于 Electron + Vue 3 + CodeMirror 6</p>
         <a href="https://github.com/wrrgit/MdEv" class="about-github" @click.prevent="openGithub">
@@ -259,6 +262,7 @@ const recentFilesSubmenu = computed(() => {
   }
   const items = store.recentFiles.slice(0, 10).map(f => ({
     label: f.fileName,
+    sublabel: f.path,
     title: f.path,
     action: () => openRecentFileAction(f.path)
   }))
@@ -281,6 +285,7 @@ const recentFoldersSubmenu = computed(() => {
   }
   return store.recentFolders.slice(0, 10).map(f => ({
     label: f.folderName,
+    sublabel: f.path,
     title: f.path,
     action: () => openFolderAction(f.path)
   }))
@@ -499,7 +504,31 @@ function execute(item) {
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
+  min-width: 0;
+}
+.submenu-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+.submenu-text .cmd-label {
+  overflow: hidden;
   text-overflow: ellipsis;
+}
+.submenu-sublabel {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.submenu-command.has-sublabel {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+.submenu-command:hover .submenu-sublabel {
+  color: rgba(255,255,255,0.6);
 }
 .submenu-command:hover {
   background: var(--accent-color);
