@@ -23,13 +23,14 @@ import { Codemirror } from 'vue-codemirror'
 import { useEditorStore } from '@/stores/editorStore'
 import { lockScrollSync, isScrollSyncLocked } from '@/core/scrollMapper'
 import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightSpecialChars, drawSelection, rectangularSelection } from '@codemirror/view'
-import { EditorState, Compartment, StateEffect } from '@codemirror/state'
+import { EditorState, Compartment, StateEffect, Prec } from '@codemirror/state'
 import { defaultHighlightStyle, syntaxHighlighting, indentOnInput, bracketMatching, foldGutter, indentUnit } from '@codemirror/language'
 import { defaultKeymap, history, historyKeymap, indentWithTab, undo, redo } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { toggleWrap, insertLink, insertCodeBlock, setHeading, smartEnter, smartTab, smartShiftTab } from '@/core/markdown/editing'
 
 const store = useEditorStore()
 const editorContainer = ref(null)
@@ -47,9 +48,29 @@ const onEditorReady = (payload) => {
   // 因此 wordWrapCompartment 必须在此通过 appendConfig 注册，并立即套用当前换行设置。
   // 之前的方案（compartment.of 放 baseExtensions / :key 重建）均因此机制而失效。
   v.dispatch({
-    effects: StateEffect.appendConfig.of(
-      wordWrapCompartment.of(store.settings.wordWrap ? EditorView.lineWrapping : [])
-    )
+    effects: StateEffect.appendConfig.of([
+      wordWrapCompartment.of(store.settings.wordWrap ? EditorView.lineWrapping : []),
+      // Typora 式 Markdown 键位（最高优先级，先于 basicSetup 的默认键位）
+      Prec.highest(keymap.of([
+        { key: 'Mod-b', run: (view) => toggleWrap(view, '**') },
+        { key: 'Mod-i', run: (view) => toggleWrap(view, '*') },
+        { key: 'Mod-Shift-`', run: (view) => toggleWrap(view, '`') },
+        { key: 'Alt-Shift-5', run: (view) => toggleWrap(view, '~~') },
+        { key: 'Mod-k', run: insertLink },
+        { key: 'Mod-Shift-K', run: insertCodeBlock },
+        { key: 'Mod-1', run: (view) => setHeading(view, 1) },
+        { key: 'Mod-2', run: (view) => setHeading(view, 2) },
+        { key: 'Mod-3', run: (view) => setHeading(view, 3) },
+        { key: 'Mod-4', run: (view) => setHeading(view, 4) },
+        { key: 'Mod-5', run: (view) => setHeading(view, 5) },
+        { key: 'Mod-6', run: (view) => setHeading(view, 6) },
+        { key: 'Mod-0', run: (view) => setHeading(view, 0) },
+        { key: 'Enter', run: smartEnter },
+        { key: 'Shift-Enter', run: (view) => { view.dispatch(view.state.replaceSelection('\n')); return true } },
+        { key: 'Tab', run: smartTab },
+        { key: 'Shift-Tab', run: smartShiftTab }
+      ]))
+    ])
   })
   // 源码行映射滚动同步：监听编辑器滚动
   v.scrollDOM.addEventListener('scroll', onEditorScroll, { passive: true })

@@ -197,7 +197,7 @@ async function setupMenu() {
         { type: 'separator' },
         {
           label: '切换侧栏',
-          accelerator: 'CmdOrCtrl+B',
+          accelerator: 'CmdOrCtrl+Shift+B',
           click: () => mainWindow?.webContents.send('menu:toggle-sidebar')
         },
         { type: 'separator' },

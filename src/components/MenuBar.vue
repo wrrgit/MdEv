@@ -93,6 +93,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
 import { EditorView } from '@codemirror/view'
 import { undo as cmUndo, redo as cmRedo } from '@codemirror/commands'
+import { toggleWrap, insertLink, insertCodeBlock, setHeading } from '@/core/markdown/editing'
 
 const store = useEditorStore()
 const openMenu = ref(null)
@@ -320,6 +321,21 @@ const menus = computed(() => [
       { label: '复制', shortcut: 'Ctrl+C', action: () => document.execCommand('copy') },
       { label: '粘贴', shortcut: 'Ctrl+V', action: () => document.execCommand('paste') },
       { separator: true },
+      { label: '加粗', shortcut: 'Ctrl+B', action: () => { const v = getView(); if (v) { toggleWrap(v, '**'); v.focus() } } },
+      { label: '斜体', shortcut: 'Ctrl+I', action: () => { const v = getView(); if (v) { toggleWrap(v, '*'); v.focus() } } },
+      { label: '删除线', shortcut: 'Alt+Shift+5', action: () => { const v = getView(); if (v) { toggleWrap(v, '~~'); v.focus() } } },
+      { label: '行内代码', shortcut: 'Ctrl+Shift+`', action: () => { const v = getView(); if (v) { toggleWrap(v, '`'); v.focus() } } },
+      { label: '链接', shortcut: 'Ctrl+K', action: () => { const v = getView(); if (v) { insertLink(v); v.focus() } } },
+      { label: '代码块', shortcut: 'Ctrl+Shift+K', action: () => { const v = getView(); if (v) { insertCodeBlock(v); v.focus() } } },
+      { separator: true },
+      { label: '标题 1', shortcut: 'Ctrl+1', action: () => { const v = getView(); if (v) { setHeading(v, 1); v.focus() } } },
+      { label: '标题 2', shortcut: 'Ctrl+2', action: () => { const v = getView(); if (v) { setHeading(v, 2); v.focus() } } },
+      { label: '标题 3', shortcut: 'Ctrl+3', action: () => { const v = getView(); if (v) { setHeading(v, 3); v.focus() } } },
+      { label: '标题 4', shortcut: 'Ctrl+4', action: () => { const v = getView(); if (v) { setHeading(v, 4); v.focus() } } },
+      { label: '标题 5', shortcut: 'Ctrl+5', action: () => { const v = getView(); if (v) { setHeading(v, 5); v.focus() } } },
+      { label: '标题 6', shortcut: 'Ctrl+6', action: () => { const v = getView(); if (v) { setHeading(v, 6); v.focus() } } },
+      { label: '正文', shortcut: 'Ctrl+0', action: () => { const v = getView(); if (v) { setHeading(v, 0); v.focus() } } },
+      { separator: true },
       { label: '查找', shortcut: 'Ctrl+F', action: () => { store.sidebarPanel = 'search'; store.sidebarVisible = true } },
       { label: '跨文件搜索', shortcut: 'Ctrl+Shift+F', action: () => { store.sidebarPanel = 'search'; store.sidebarVisible = true } },
       { separator: true },
@@ -350,7 +366,7 @@ const menus = computed(() => [
       { label: '纯编辑模式', checked: store.settings.viewMode === 'edit', action: () => { store.settings.viewMode = 'edit' } },
       { label: '纯预览模式', checked: store.settings.viewMode === 'preview', action: () => { store.settings.viewMode = 'preview' } },
       { separator: true },
-      { label: '切换侧栏', shortcut: 'Ctrl+B', action: () => { store.sidebarVisible = !store.sidebarVisible } },
+      { label: '切换侧栏', shortcut: 'Ctrl+Shift+B', action: () => { store.sidebarVisible = !store.sidebarVisible } },
       { label: '滚动同步', checked: store.settings.scrollSync, action: () => { store.settings.scrollSync = !store.settings.scrollSync } },
       { separator: true },
       { label: '自动换行', checked: store.settings.wordWrap, action: () => { store.settings.wordWrap = !store.settings.wordWrap; window.api?.setSettings({ settings: { ...store.settings } }) } }
