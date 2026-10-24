@@ -1,6 +1,6 @@
 {
   "name": "mdev",
-  "version": "0.2.0",
+  "version": "0.5.0",
   "description": "Markdown Editor for Windows — 本地桌面端 Markdown 编辑器",
   "main": "dist-electron/main.js",
   "type": "module",

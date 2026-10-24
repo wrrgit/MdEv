@@ -10,7 +10,7 @@ Markdown Editor for Windows — 左编辑右预览双栏布局，支持工程目
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D4.svg)](https://github.com/wrrgit/MdEv)
 [![Electron](https://img.shields.io/badge/Electron-33-47848F.svg)](https://www.electronjs.org/)
 [![Vue](https://img.shields.io/badge/Vue-3-42b883.svg)](https://vuejs.org/)
-[![Release](https://img.shields.io/badge/Release-v0.2.0-orange.svg)](https://github.com/wrrgit/MdEv/releases)
+[![Release](https://img.shields.io/badge/Release-v0.5.0-orange.svg)](https://github.com/wrrgit/MdEv/releases)
 
 [English](./README.en.md) | 简体中文
 
@@ -37,6 +37,8 @@ MdEv 是一款基于 Electron + Vue 3 + CodeMirror 6 构建的 Windows 桌面端
 - ✅ **Typora 式编辑键位** — `Ctrl+B/I/K` 加粗/斜体/链接，`Ctrl+1~6` 标题，`Ctrl+Shift+K` 代码块
 - ✅ **撤销 / 重做** — 完整编辑历史，工具栏按钮 + 快捷键
 - ✅ **自动保存** — 防抖自动写盘，状态栏实时显示保存状态
+- ✅ **未命名草稿** — 新建文档自动编号（未命名、未命名 2…），内容静默存入草稿，关闭时询问是否保存
+- ✅ **会话恢复** — 退出时记录打开的标签与项目目录，下次启动自动还原（仅存路径元数据，启动并行加载）
 - ✅ **自动换行** — 可切换软换行模式，单回车即换行（与 Typora 一致）
 - ✅ **图片拖拽插入** — 直接拖拽图片到编辑区自动插入 Markdown 语法
 - ✅ **剪贴板图片粘贴** — 截图/复制的图片直接 `Ctrl+V` 粘贴，自动存入 assets 目录
@@ -66,11 +68,11 @@ MdEv 是一款基于 Electron + Vue 3 + CodeMirror 6 构建的 Windows 桌面端
 ### 项目管理
 
 - ✅ **工程目录管理** — 打开文件夹，文件树浏览、新建文件 / 文件夹
+- ✅ **单文件模式** — 未打开文件夹时，侧栏列出已打开文件，同样支持右键操作
 - ✅ **文件树右键菜单** — 重命名 / 删除 / 新建 / 在资源管理器中显示，已打开标签自动联动
 - ✅ **外部变更检测** — 文件被外部修改时自动提示/重载
 - ✅ **多标签页** — 拖拽排序、未保存标记、右键菜单关闭
 - ✅ **最近打开** — 最近文件 / 文件夹快速访问，文件菜单 + 侧边栏双重入口
-- ✅ **默认恢复** — 启动时自动打开上次的文档和文件夹
 - ✅ **文件类型支持** — Markdown、JSON、图片（图片用系统查看器打开）
 
 ### 导航与搜索
@@ -84,7 +86,8 @@ MdEv 是一款基于 Electron + Vue 3 + CodeMirror 6 构建的 Windows 桌面端
 ### 个性化
 
 - ✅ **主题切换** — 浅色 / 深色 / 跟随系统，侧边栏太阳/月亮图标一键切换
-- ✅ **字体设置** — 编辑器 / 预览区独立字体选择，侧边栏 A+/A− 快捷调节字号
+- ✅ **字体设置** — 编辑器 / 预览区独立字体与字号，侧边栏 A+/A− 快捷同步调节
+- ✅ **界面字体** — 菜单栏与标题栏字体、字号可在设置中单独调整
 - ✅ **设置面板** — 外观 / 编辑器 / 预览 / 文件，4 大分区，齿轮图标入口
 
 ### 导出
@@ -98,6 +101,7 @@ MdEv 是一款基于 Electron + Vue 3 + CodeMirror 6 构建的 Windows 桌面端
 ### 界面
 
 - ✅ **品牌标识** — 标题栏 logo + 软件名称 MdEv
+- ✅ **路径面包屑** — 标题栏按层级显示当前文件完整路径，文件名高亮，过长自动截断左侧
 - ✅ **侧边栏图标** — Lucide 风格线条图标，清晰易辨
 - ✅ **关于弹窗** — 含 GitHub 仓库链接
 
@@ -105,9 +109,9 @@ MdEv 是一款基于 Electron + Vue 3 + CodeMirror 6 构建的 Windows 桌面端
 
 ### 方式一：直接下载（推荐普通用户）
 
-前往 [Releases 页面](https://github.com/wrrgit/MdEv/releases) 下载最新版本的 `MdEv-Setup-0.2.0.exe`，双击即可安装运行。
+前往 [Releases 页面](https://github.com/wrrgit/MdEv/releases) 下载最新版本的 `MdEv Setup 0.5.0.exe`，双击即可安装运行。
 
-> 也可下载便携版 `MdEv 0.2.0.exe`，无需安装，双击即用。
+> 也可下载便携版 `MdEv 0.5.0.exe`，无需安装，双击即用。
 
 ### 方式二：从源码构建
 
@@ -226,7 +230,7 @@ MdEv/
 | v0.2.0 | 工具栏增强 + 主题/字体 + 最近文件 + 图片支持 + PlantUML | ✅ 已发布  |
 | v0.3.0 | 导航与搜索（TOC 高亮、搜索高亮、滚动同步、快速打开）          | ✅ 已发布  |
 | v0.4.0 | 导出扩展（PNG 导出、分步进度）                     | ✅ 已发布  |
-| v0.5.0 | 写作体验（专注/打字机模式、剪贴板粘贴、外部变更检测、文件树右键）    | ✅ 已发布  |
+| v0.5.0 | 写作体验（专注/打字机、剪贴板粘贴、外部变更检测、文件树右键、草稿与会话恢复）    | ✅ 已发布  |
 | v0.6.0 | 打包与发布（自动更新、测试覆盖、用户手册）                 | 📋 计划中 |
 | v1.0.0 | 正式发布                                   | 📋 计划中 |
 
