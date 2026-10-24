@@ -335,10 +335,7 @@ const tocItems = computed(() => {
   return items
 })
 
-const activeTocLine = computed(() => {
-  // Would need cursor position from editor - simplified for now
-  return 0
-})
+const activeTocLine = computed(() => store.currentTocLine || 0)
 
 // 去除 markdown 行内标记，得到纯文本（TOC 的 item.text 含原始标记，需与渲染后 textContent 对齐）
 function stripMarkdown(s) {
@@ -368,10 +365,22 @@ function jumpToLine(line) {
   }
 }
 
-// 预览视图跳转：根据标题级别+文本在渲染后的 HTML 中定位对应标题并滚动
+// 预览视图跳转：优先通过源码行号精确定位，失败时回退到文本匹配
 function scrollToPreviewHeading(item) {
   const previewScroll = document.querySelector('.preview-scroll')
   if (!previewScroll) return
+
+  const byLine = previewScroll.querySelector(`[data-source-line="${item.line}"]`)
+  if (byLine) {
+    const rect = byLine.getBoundingClientRect()
+    const containerRect = previewScroll.getBoundingClientRect()
+    previewScroll.scrollTop += (rect.top - containerRect.top) - 8
+    byLine.classList.add('toc-flash')
+    setTimeout(() => byLine.classList.remove('toc-flash'), 1200)
+    return
+  }
+
+  // fallback：按标题级别+文本匹配
   const tag = 'h' + item.level
   const headings = previewScroll.querySelectorAll(tag)
   const targetText = stripMarkdown(item.text)
@@ -379,7 +388,6 @@ function scrollToPreviewHeading(item) {
   for (const h of headings) {
     if (h.textContent.trim() === targetText) { found = h; break }
   }
-  // fallback：精确匹配失败时用包含关系（应对边缘标记）
   if (!found) {
     for (const h of headings) {
       const ht = h.textContent.trim()

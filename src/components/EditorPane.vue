@@ -21,6 +21,7 @@
 import { ref, computed, shallowRef, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { Codemirror } from 'vue-codemirror'
 import { useEditorStore } from '@/stores/editorStore'
+import { lockScrollSync, isScrollSyncLocked } from '@/core/scrollMapper'
 import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightSpecialChars, drawSelection, rectangularSelection } from '@codemirror/view'
 import { EditorState, Compartment, StateEffect } from '@codemirror/state'
 import { defaultHighlightStyle, syntaxHighlighting, indentOnInput, bracketMatching, foldGutter, indentUnit } from '@codemirror/language'
@@ -33,7 +34,6 @@ import { oneDark } from '@codemirror/theme-one-dark'
 const store = useEditorStore()
 const editorContainer = ref(null)
 const editorView = shallowRef(null)
-let isSyncing = false
 
 const onEditorReady = (payload) => {
   const v = payload.view
@@ -51,35 +51,60 @@ const onEditorReady = (payload) => {
       wordWrapCompartment.of(store.settings.wordWrap ? EditorView.lineWrapping : [])
     )
   })
+  // 源码行映射滚动同步：监听编辑器滚动
+  v.scrollDOM.addEventListener('scroll', onEditorScroll, { passive: true })
 }
 
 const onEditorUpdate = (payload) => {
-  const v = payload.view
-  updateCursorPos(v)
-  if (!isSyncing && store.settings.scrollSync) {
-    const scroller = v.scrollDOM
-    if (scroller) {
-      const maxScroll = scroller.scrollHeight - scroller.clientHeight
-      if (maxScroll > 0) {
-        isSyncing = true
-        store.scrollSyncSource = { source: 'editor', percent: scroller.scrollTop / maxScroll }
-        nextTick(() => { isSyncing = false })
-      }
-    }
+  updateCursorPos(payload.view)
+}
+
+// ── 源码行映射滚动同步 ──
+let editorScrollRaf = false
+
+function onEditorScroll() {
+  if (editorScrollRaf) return
+  editorScrollRaf = true
+  requestAnimationFrame(() => {
+    editorScrollRaf = false
+    const v = editorView.value
+    if (!v || store.settings.viewMode === 'preview') return
+    // 视口顶部对应的源码行号
+    let topLine = 1
+    try {
+      const block = v.lineBlockAtHeight(v.scrollDOM.scrollTop + 4)
+      topLine = v.state.doc.lineAt(block.from).number
+    } catch { return }
+    // TOC 当前章节
+    const h = lastHeadingLine(v, topLine)
+    if (h) store.currentTocLine = h
+    if (!store.settings.scrollSync || isScrollSyncLocked()) return
+    store.scrollSyncSource = { source: 'editor', line: topLine }
+  })
+}
+
+// 从 fromLine 向上找到最近一个标题行
+function lastHeadingLine(v, fromLine) {
+  const doc = v.state.doc
+  const start = Math.min(fromLine, doc.lines)
+  for (let n = start; n >= 1; n--) {
+    if (/^#{1,6}\s+\S/.test(doc.line(n).text)) return n
   }
+  return 0
 }
 
 watch(() => store.scrollSyncSource, (val) => {
   if (!val || val.source === 'editor' || !store.settings.scrollSync) return
   const v = editorView.value
-  if (!v) return
-  const scroller = v.scrollDOM
-  if (!scroller) return
-  const maxScroll = scroller.scrollHeight - scroller.clientHeight
-  if (maxScroll <= 0) return
-  isSyncing = true
-  scroller.scrollTop = maxScroll * val.percent
-  nextTick(() => { isSyncing = false })
+  if (!v || store.settings.viewMode === 'preview') return
+  const line = Math.max(1, Math.min(Math.round(val.line), v.state.doc.lines))
+  const pos = v.state.doc.line(line).from
+  const coords = v.coordsAtPos(pos)
+  if (!coords) return
+  const rect = v.scrollDOM.getBoundingClientRect()
+  lockScrollSync()
+  // 将目标行对齐到编辑器视口顶部
+  v.scrollDOM.scrollTop = v.scrollDOM.scrollTop + (coords.top - rect.top)
 })
 
 function updateCursorPos(view) {
@@ -262,6 +287,9 @@ onMounted(() => {
 })
 onUnmounted(() => {
   if (resizeObserver) resizeObserver.disconnect()
+  try {
+    editorView.value?.scrollDOM?.removeEventListener('scroll', onEditorScroll)
+  } catch {}
 })
 </script>
 

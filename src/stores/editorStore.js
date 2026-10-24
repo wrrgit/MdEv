@@ -105,8 +105,11 @@ export const useEditorStore = defineStore('editor', () => {
   // ── 选中文本（状态栏选中统计用）──
   const selectionText = ref('')
 
-  // ── 滚动联动 ──
+  // ── 滚动联动（源码行映射：{source: 'editor'|'preview', line: 文档行号}）──
   const scrollSyncSource = ref(null)
+
+  // ── TOC 当前章节所在行（滚动时自动更新）──
+  const currentTocLine = ref(0)
 
   // ── 标签操作 ──
   function addTab(filePath = null, content = '', fileName = '未命名.md') {
@@ -266,6 +269,7 @@ export const useEditorStore = defineStore('editor', () => {
     cursorLine, cursorCol,
     selectionText,
     scrollSyncSource,
+    currentTocLine,
     addTab, closeTab, closeOtherTabs, closeRightTabs, setActiveTab,
     updateTabOrder, markAsSaved,
     addRecentFile, addRecentFolder, toggleRecentPin, reorderRecent,

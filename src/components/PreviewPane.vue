@@ -10,12 +10,22 @@
 import { ref, watch, nextTick } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
 import { parseMarkdown } from '@/core/markdown/parser'
+import { buildAnchors, yToLine, lineToY, currentHeadingLine, lockScrollSync, isScrollSyncLocked } from '@/core/scrollMapper'
 
 const store = useEditorStore()
 const previewScroll = ref(null)
 const previewContent = ref(null)
 const renderedHtml = ref('')
-let isSyncing = false
+
+// ── 源码行映射锚点缓存（每次渲染后重建）──
+let anchorCache = null // { anchors, pad }
+let scrollRafPending = false
+
+function rebuildAnchors() {
+  const content = previewContent.value
+  const scroller = previewScroll.value
+  anchorCache = content && scroller ? buildAnchors(content, scroller) : null
+}
 
 watch(() => store.content, async () => {
   if (!store.activeTab) {
@@ -28,34 +38,51 @@ watch(() => store.content, async () => {
   })
   await nextTick()
   await renderMermaidBlocks()
+  rebuildAnchors()
 }, { immediate: true })
+
+// 字体/行高变化会改变预览布局，锚点需要重建
+watch(() => [store.settings.previewFontSize, store.settings.previewFontFamily, store.settings.lineHeight], () => {
+  nextTick(rebuildAnchors)
+})
 
 watch(() => store.scrollSyncSource, (val) => {
   if (!val || val.source === 'preview' || !store.settings.scrollSync) return
-  if (!previewScroll.value) return
+  if (store.settings.viewMode === 'edit') return
   const el = previewScroll.value
-  const maxScroll = el.scrollHeight - el.clientHeight
-  if (maxScroll <= 0) return
-  isSyncing = true
-  el.scrollTop = maxScroll * val.percent
-  nextTick(() => { isSyncing = false })
+  const cache = anchorCache
+  if (!el || !cache || cache.anchors.length === 0) return
+  const y = lineToY(cache.anchors, val.line)
+  if (y == null) return
+  lockScrollSync()
+  el.scrollTop = Math.max(0, y + cache.pad)
 })
 
 watch(() => store.activeTabId, () => {
   nextTick(() => {
     if (previewScroll.value) previewScroll.value.scrollTop = 0
+    rebuildAnchors()
   })
 })
 
 function onPreviewScroll() {
-  if (isSyncing || !store.settings.scrollSync) return
-  const el = previewScroll.value
-  if (!el) return
-  const maxScroll = el.scrollHeight - el.clientHeight
-  if (maxScroll <= 0) return
-  isSyncing = true
-  store.scrollSyncSource = { source: 'preview', percent: el.scrollTop / maxScroll }
-  nextTick(() => { isSyncing = false })
+  if (scrollRafPending) return
+  scrollRafPending = true
+  requestAnimationFrame(() => {
+    scrollRafPending = false
+    const el = previewScroll.value
+    const cache = anchorCache
+    if (!el || !cache || cache.anchors.length === 0) return
+    const y = el.scrollTop - cache.pad
+    // TOC 当前章节高亮（不依赖滚动同步开关）
+    const h = currentHeadingLine(cache.anchors, y)
+    if (h) store.currentTocLine = h
+    if (!store.settings.scrollSync || isScrollSyncLocked()) return
+    const line = yToLine(cache.anchors, y)
+    if (line != null) {
+      store.scrollSyncSource = { source: 'preview', line: Math.max(1, Math.round(line)) }
+    }
+  })
 }
 
 // ── 点击预览区链接/图片，打开本地文件 ──
