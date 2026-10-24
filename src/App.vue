@@ -33,7 +33,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
 import { useTheme } from '@/composables/useTheme'
 import { useAutoSave } from '@/composables/useAutoSave'
@@ -108,6 +108,72 @@ function startSplitDrag(e) {
   document.body.style.userSelect = 'none'
 }
 
+// ── 文件外部变更监听 ──
+let watchedFolder = null
+
+async function watchProjectFolder(folderPath) {
+  if (!folderPath || !window.api?.watchDirectory) return
+  if (watchedFolder === folderPath) return
+  if (watchedFolder) {
+    try { await window.api.unwatchDirectory(watchedFolder) } catch {}
+  }
+  const r = await window.api.watchDirectory(folderPath)
+  if (r?.success) watchedFolder = folderPath
+}
+
+// 归一化路径用于比较（Windows 大小写不敏感、分隔符统一）
+function normPath(p) {
+  return (p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+}
+
+async function onExternalFileChange(data) {
+  const filePath = data?.path
+  if (!filePath) return
+  // 忽略应用内保存后的自触发（500ms 窗口）
+  if (Date.now() - store.lastAppSaveTime < 500) return
+  // 忽略 assets 图片目录的写入（避免粘贴图片触发刷新）
+  if (/[\\/]assets[\\/]/.test(filePath) && /\.(png|jpe?g|gif|bmp|webp|svg|ico|avif)$/i.test(filePath)) return
+
+  const normChanged = normPath(filePath)
+  // 检查是否命中已打开的标签页
+  const tab = store.tabs.find(t => t.filePath && normPath(t.filePath) === normChanged)
+  if (tab) {
+    if (tab.isDirty) {
+      // 已脏：不打断用户，仅在状态栏提示
+      store.notifyFileChange(`⚠ ${tab.fileName} 已被外部修改（当前有未保存更改）`)
+      return
+    }
+    // 未脏：自动重载内容（抑制自动保存，内容已与磁盘一致）
+    const r = await window.api.readFile(tab.filePath)
+    if (r?.success) {
+      store.suppressAutoSave = true
+      tab.content = r.content
+      // 下一个宏任务恢复，确保 watch 已经跑过
+      setTimeout(() => { store.suppressAutoSave = false }, 0)
+      store.notifyFileChange(`已重新加载 ${tab.fileName}（外部修改）`)
+    }
+    return
+  }
+  // 未打开的文件变更：刷新文件树
+  if (store.projectRoot) {
+    const r = await window.api.readDirectory(store.projectRoot)
+    if (r?.success) {
+      store.applyExpandedToTree(r.tree)
+      store.fileTree = r.tree
+    }
+  }
+}
+
+function startFileWatchListener() {
+  if (!window.api?.onFileChanged) return
+  window.api.onFileChanged(onExternalFileChange)
+}
+
+// 项目根变化时自动切换 watch 目标
+watch(() => store.projectRoot, (val) => {
+  if (val) watchProjectFolder(val)
+})
+
 // ── Lifecycle ──
 onMounted(async () => {
   await loadSavedSettings()
@@ -117,6 +183,7 @@ onMounted(async () => {
   listenForNativeTheme()
   watchSettingsChanges()
   startAutoSave()
+  startFileWatchListener()
 
   // ── 默认打开上次的文件夹和文件 ──
   if (store.recentFolders.length > 0) {
@@ -129,6 +196,7 @@ onMounted(async () => {
           store.fileTree = result.tree
           store.setProjectRoot(lastFolder)
           store.expandPath(lastFolder)
+          watchProjectFolder(lastFolder)
         }
       } catch {}
     }
@@ -180,6 +248,7 @@ onMounted(async () => {
           store.fileTree = result.tree
           store.setProjectRoot(folderPath)
           store.expandPath(folderPath)
+          watchProjectFolder(folderPath)
         }
       }
     })

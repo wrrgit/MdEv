@@ -12,6 +12,8 @@ export function useAutoSave() {
       (newContent, oldContent) => {
         if (newContent === oldContent) return
         if (!store.activeTab) return
+        // 外部重载触发的内容变化不需要自动保存（内容已与磁盘一致）
+        if (store.suppressAutoSave) return
 
         saveStatus.value = 'unsaved'
 
@@ -33,6 +35,7 @@ export function useAutoSave() {
     saveStatus.value = 'saving'
 
     if (tab.filePath) {
+      store.markAppSave()
       const result = await window.api?.writeFile(tab.filePath, tab.content)
       if (result?.success) {
         store.markAsSaved()
@@ -46,6 +49,7 @@ export function useAutoSave() {
       // No file path - need "Save As"
       const filePath = await window.api?.saveFileDialog(tab.fileName)
       if (filePath) {
+        store.markAppSave()
         const result = await window.api?.writeFile(filePath, tab.content)
         if (result?.success) {
           tab.filePath = filePath
@@ -76,6 +80,7 @@ export function useAutoSave() {
 
     const filePath = await window.api?.saveFileDialog(tab.fileName)
     if (filePath) {
+      store.markAppSave()
       const result = await window.api?.writeFile(filePath, tab.content)
       if (result?.success) {
         tab.filePath = filePath

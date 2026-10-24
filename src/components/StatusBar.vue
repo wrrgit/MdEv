@@ -12,6 +12,7 @@
       </span>
     </div>
     <div class="status-right">
+      <span class="status-item file-notice" v-if="store.fileChangeNotice">{{ store.fileChangeNotice }}</span>
       <button class="view-mode-btn" @click="cycleViewMode" :title="viewModeLabel">
         {{ viewModeLabel }}
       </button>
@@ -87,6 +88,15 @@ const selectionChars = computed(() => countChars(store.selectionText))
 .status-item.saving { color: var(--accent-color); }
 .status-item.unsaved { color: #e78333; }
 .stat-item.selected { color: var(--accent-color); }
+.status-item.file-notice {
+  color: var(--accent-color);
+  font-size: 13px;
+  animation: notice-fade 0.3s ease-in;
+}
+@keyframes notice-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 .view-mode-btn {
   background: transparent;
   border: none;

@@ -215,11 +215,13 @@ async function saveAction() {
     const tab = store.activeTab
     if (!tab) return
     if (tab.filePath) {
+      store.markAppSave()
       const r = await window.api?.writeFile(tab.filePath, tab.content)
       if (r?.success) store.markAsSaved()
     } else {
       const p = await window.api?.saveFileDialog('未命名.md')
       if (p) {
+        store.markAppSave()
         const r = await window.api?.writeFile(p, tab.content)
         if (r?.success) {
           tab.filePath = p
@@ -240,6 +242,7 @@ async function saveAsAction() {
     if (!tab) return
     const p = await window.api?.saveFileDialog(tab.fileName)
     if (p) {
+      store.markAppSave()
       const r = await window.api?.writeFile(p, tab.content)
       if (r?.success) {
         tab.filePath = p

@@ -113,6 +113,22 @@ export const useEditorStore = defineStore('editor', () => {
   // ── TOC 当前章节所在行（滚动时自动更新）──
   const currentTocLine = ref(0)
 
+  // ── 文件外部变更通知（状态栏短暂显示）──
+  const fileChangeNotice = ref('')
+  let fileChangeNoticeTimer = null
+  function notifyFileChange(msg, ms = 4000) {
+    fileChangeNotice.value = msg
+    if (fileChangeNoticeTimer) clearTimeout(fileChangeNoticeTimer)
+    fileChangeNoticeTimer = setTimeout(() => { fileChangeNotice.value = '' }, ms)
+  }
+
+  // 应用内最近一次保存时间戳（用于忽略 watcher 自触发）
+  const lastAppSaveTime = ref(0)
+  function markAppSave() { lastAppSaveTime.value = Date.now() }
+
+  // 外部重载时短暂抑制自动保存（内容来自磁盘，无需回写）
+  const suppressAutoSave = ref(false)
+
   // ── 标签操作 ──
   function addTab(filePath = null, content = '', fileName = '未命名.md') {
     // 去重：同一路径的文件已打开时，直接激活已有标签页（避免重复标签）
@@ -272,6 +288,9 @@ export const useEditorStore = defineStore('editor', () => {
     selectionText,
     scrollSyncSource,
     currentTocLine,
+    fileChangeNotice, notifyFileChange,
+    lastAppSaveTime, markAppSave,
+    suppressAutoSave,
     addTab, closeTab, closeOtherTabs, closeRightTabs, setActiveTab,
     updateTabOrder, markAsSaved,
     addRecentFile, addRecentFolder, toggleRecentPin, reorderRecent,
