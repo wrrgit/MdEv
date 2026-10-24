@@ -25,7 +25,16 @@ contextBridge.exposeInMainWorld('api', {
   watchDirectory: (dirPath) => ipcRenderer.invoke('file:watch', dirPath),
   unwatchDirectory: (dirPath) => ipcRenderer.invoke('file:unwatch', dirPath),
   onFileChanged: (callback) => {
-    ipcRenderer.on('file:changed', (_, data) => callback(data))
+    const handler = (_, data) => callback(data)
+    ipcRenderer.on('file:changed', handler)
+    return () => ipcRenderer.removeListener('file:changed', handler)
+  },
+
+  // ── 通过文件关联 / 第二实例打开文档 ──
+  onOpenFile: (callback) => {
+    const handler = (_, filePath) => callback(filePath)
+    ipcRenderer.on('app:open-file', handler)
+    return () => ipcRenderer.removeListener('app:open-file', handler)
   },
 
   // ── 对话框 ──

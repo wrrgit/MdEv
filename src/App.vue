@@ -269,6 +269,17 @@ onMounted(async () => {
   }
   }
 
+  // ── 通过 .md 文件关联 / 第二实例传入的文档 ──
+  window.api?.onOpenFile?.(async (filePath) => {
+    try {
+      const result = await window.api.readFile(filePath)
+      if (result?.success) {
+        store.addTab(filePath, result.content, filePath.split(/[\\/]/).pop())
+        store.addRecentFile(filePath)
+      }
+    } catch {}
+  })
+
   if (window.api?.onMenuEvent) {
     window.api.onMenuEvent('menu:new-file', () => {
       store.addTab(null, '', '未命名.md')

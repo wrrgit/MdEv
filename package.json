@@ -88,7 +88,8 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "unicode": true
+      "unicode": true,
+      "include": "build/installer.nsh"
     }
   }
 }

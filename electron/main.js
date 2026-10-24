@@ -20,6 +20,32 @@ protocol.registerSchemesAsPrivileged([
 
 let mainWindow = null
 
+// ── 通过文件关联启动：从命令行参数中提取待打开的文档路径 ──
+let pendingOpenPath = null
+
+function extractFileArg(argv) {
+  for (const arg of argv.slice(1)) {
+    if (!arg || arg.startsWith('-')) continue
+    if (/\.(md|markdown|txt|json)$/i.test(arg) && existsSync(arg)) return arg
+  }
+  return null
+}
+
+// 单实例：重复打开文档时把路径转发给已运行的窗口，而不是再起一个进程
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+if (!hasSingleInstanceLock) {
+  app.quit()
+} else {
+  pendingOpenPath = extractFileArg(process.argv)
+  app.on('second-instance', (_, argv) => {
+    const filePath = extractFileArg(argv)
+    if (!mainWindow) return
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+    if (filePath) mainWindow.webContents.send('app:open-file', filePath)
+  })
+}
+
 function loadWindowBounds() {
   try {
     if (existsSync(boundsPath)) {
@@ -89,6 +115,14 @@ async function createWindow() {
   mainWindow.on('move', saveWindowBounds)
   mainWindow.on('closed', () => {
     mainWindow = null
+  })
+
+  // 首次渲染完成后打开通过文件关联传入的文档
+  mainWindow.webContents.once('did-finish-load', () => {
+    if (pendingOpenPath) {
+      mainWindow?.webContents.send('app:open-file', pendingOpenPath)
+      pendingOpenPath = null
+    }
   })
 
   // 禁用拖拽默认行为（防止拖入文件时整个窗口跳转到文件路径）
@@ -551,6 +585,7 @@ function registerIpcHandlers() {
 }
 
 app.whenReady().then(() => {
+  if (!hasSingleInstanceLock) return
   // ── 注册 mdimg:// 自定义协议，用于加载本地图片 ──
   protocol.handle('mdimg', (request) => {
     let filePath = decodeURIComponent(request.url.replace(/^mdimg:\/\/\/?/, ''))
