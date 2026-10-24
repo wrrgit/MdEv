@@ -12,6 +12,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const isDev = process.env.NODE_ENV === 'development'
 const boundsPath = join(app.getPath('userData'), 'window-bounds.json')
 
+// 自定义 mdimg:// 本地图片协议：必须在 app ready 前注册为特权 scheme，
+// 否则 <img src="mdimg://..."> 会被 Chromium 当作非安全源拦截（显示破裂图标）
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'mdimg', privileges: { secure: true, supportFetchAPI: true, stream: true } }
+])
+
 let mainWindow = null
 
 function loadWindowBounds() {
