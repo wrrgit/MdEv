@@ -67,10 +67,19 @@ export function useTheme() {
       { deep: true }
     )
 
+    // 注意：不能把 Vue 响应式代理数组直接传给 ipcRenderer——contextBridge 的
+    // 结构化克隆不支持 Proxy，会抛 "An object could not be cloned" 导致静默失败，
+    // 最近列表永远写不进磁盘。必须先映射成普通对象。
     watch(
       () => store.recentFiles,
       (files) => {
-        window.api?.setSettings({ recentFiles: files })
+        const plain = (files || []).map(f => ({
+          path: f.path,
+          fileName: f.fileName,
+          pinned: !!f.pinned,
+          lastOpened: f.lastOpened
+        }))
+        window.api?.setSettings({ recentFiles: plain })
       },
       { deep: true }
     )
@@ -78,7 +87,13 @@ export function useTheme() {
     watch(
       () => store.recentFolders,
       (folders) => {
-        window.api?.setSettings({ recentFolders: folders })
+        const plain = (folders || []).map(f => ({
+          path: f.path,
+          folderName: f.folderName,
+          pinned: !!f.pinned,
+          lastOpened: f.lastOpened
+        }))
+        window.api?.setSettings({ recentFolders: plain })
       },
       { deep: true }
     )

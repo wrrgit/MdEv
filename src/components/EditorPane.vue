@@ -1,6 +1,7 @@
 <template>
   <div class="editor-pane" :class="{ 'word-wrap': store.settings.wordWrap }" ref="editorContainer" v-show="store.tabs.length > 0"
-    @drop="onDrop" @dragover.prevent @dragenter.prevent>
+    @drop="onDrop" @dragover.prevent @dragenter.prevent
+    @contextmenu.prevent="onEditorContextMenu">
     <Codemirror
       v-if="store.activeTab"
       :model-value="store.content"
@@ -13,6 +14,15 @@
       :tab-size="store.settings.tabSize"
       @ready="onEditorReady"
       @update="onEditorUpdate"
+    />
+    <!-- 选中文本右键菜单：复制 / 文内搜索 / 在打开的文件中搜索 -->
+    <ContextMenu
+      :visible="menuVisible"
+      :x="menuX"
+      :y="menuY"
+      :items="items"
+      @close="close"
+      @select="onSelect"
     />
   </div>
 </template>
@@ -32,10 +42,23 @@ import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { toggleWrap, insertLink, insertCodeBlock, setHeading, smartEnter, smartTab, smartShiftTab } from '@/core/markdown/editing'
+import ContextMenu from './ContextMenu.vue'
+import { useSelectionMenu } from '@/composables/useSelectionMenu'
 
 const store = useEditorStore()
 const editorContainer = ref(null)
 const editorView = shallowRef(null)
+
+// ── 选中文本右键菜单 ──
+const { menuVisible, menuX, menuY, items, open: openMenu, close, onSelect } = useSelectionMenu(store)
+
+function onEditorContextMenu(e) {
+  const v = editorView.value
+  if (!v) return
+  const sel = v.state.selection.main
+  const text = sel.empty ? '' : v.state.sliceDoc(sel.from, sel.to)
+  openMenu(e, text)
+}
 
 const onEditorReady = (payload) => {
   const v = payload.view

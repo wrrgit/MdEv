@@ -79,6 +79,8 @@ export function useSession() {
         if (!it) { missing++; return }
         if (it.filePath) {
           ids.push(store.addTab(it.filePath, it.content, it.fileName))
+          // 会话恢复的文件同样刷新最近打开记录（更新 lastOpened 并置顶）
+          store.addRecentFile(it.filePath)
         } else {
           ids.push(store.restoreTab({ id: it.draftId, fileName: it.fileName, content: it.content, hasDraft: !!it.hasDraft }))
         }

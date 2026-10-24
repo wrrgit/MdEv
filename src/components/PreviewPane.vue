@@ -1,8 +1,18 @@
 <template>
-  <div class="preview-pane" v-show="store.tabs.length > 0 && store.settings.viewMode !== 'edit'">
+  <div class="preview-pane" v-show="store.tabs.length > 0 && store.settings.viewMode !== 'edit'"
+    @contextmenu.prevent="onPreviewContextMenu">
     <div class="preview-scroll" ref="previewScroll" @scroll="onPreviewScroll">
       <div class="markdown-body" :class="{ 'word-wrap-enabled': store.settings.wordWrap }" v-html="renderedHtml" ref="previewContent" @click="onPreviewClick"></div>
     </div>
+    <!-- 选中文本右键菜单：复制 / 文内搜索 / 在打开的文件中搜索 -->
+    <ContextMenu
+      :visible="menuVisible"
+      :x="menuX"
+      :y="menuY"
+      :items="items"
+      @close="close"
+      @select="onSelect"
+    />
   </div>
 </template>
 
@@ -11,11 +21,21 @@ import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
 import { parseMarkdown } from '@/core/markdown/parser'
 import { buildAnchors, yToLine, lineToY, currentHeadingLine, lockScrollSync, isScrollSyncLocked } from '@/core/scrollMapper'
+import ContextMenu from './ContextMenu.vue'
+import { useSelectionMenu } from '@/composables/useSelectionMenu'
 
 const store = useEditorStore()
 const previewScroll = ref(null)
 const previewContent = ref(null)
 const renderedHtml = ref('')
+
+// ── 选中文本右键菜单 ──
+const { menuVisible, menuX, menuY, items, open: openMenu, close, onSelect } = useSelectionMenu(store)
+
+function onPreviewContextMenu(e) {
+  const text = window.getSelection?.()?.toString() || ''
+  openMenu(e, text)
+}
 
 // ── 源码行映射锚点缓存（每次渲染后重建）──
 let anchorCache = null // { anchors, pad }

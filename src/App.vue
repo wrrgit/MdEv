@@ -262,6 +262,8 @@ onMounted(async () => {
           if (result?.success) {
             const fileName = lastFile.split(/[\\/]/).pop()
             store.addTab(lastFile, result.content, fileName)
+            // 兜底打开的文件同样刷新最近记录（更新 lastOpened 并置顶）
+            store.addRecentFile(lastFile)
           }
         }
       } catch {}

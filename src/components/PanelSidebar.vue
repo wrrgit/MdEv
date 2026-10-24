@@ -171,11 +171,12 @@
           />
           <select v-model="searchScope" class="search-scope">
             <option value="file">文件内</option>
+            <option value="open">打开的文件</option>
             <option value="project">跨文件</option>
           </select>
         </div>
         <div class="search-results" v-if="searchResults.length > 0">
-          <div v-for="result in searchResults" :key="result.file + result.line" class="search-result-item">
+          <div v-for="result in searchResults" :key="(result.tabId || '') + result.file + result.line" class="search-result-item">
             <div class="result-file">{{ result.relativePath }}</div>
             <div class="result-line" @click="openResult(result)">
               <span class="line-num">{{ result.line }}</span>
@@ -206,6 +207,18 @@ watch(searchInput, (val) => {
     store.searchHighlightTerm = ''
     searchResults.value = []
   }
+})
+
+// 右键菜单等处发起的搜索请求：填入搜索词与范围后立即执行
+watch(() => store.searchRequest, async (req) => {
+  if (!req || !req.term) return
+  store.sidebarPanel = 'search'
+  store.sidebarVisible = true
+  searchInput.value = req.term
+  searchScope.value = req.scope || 'file'
+  await nextTick()
+  doSearch()
+  store.searchRequest = null
 })
 
 const hasTabs = computed(() => store.tabs.length > 0)
@@ -503,6 +516,34 @@ async function doSearch() {
       view.focus()
     }
     searchResults.value = []
+  } else if (searchScope.value === 'open') {
+    // 打开的文件中搜索：遍历所有已打开标签页的内容（渲染进程内完成，无需 IPC）
+    const term = searchInput.value
+    const lowerTerm = term.toLowerCase()
+    const results = []
+    outer: for (const tab of store.tabs) {
+      const lines = (tab.content || '').split(/\r?\n/)
+      for (let i = 0; i < lines.length; i++) {
+        const lowerLine = lines[i].toLowerCase()
+        let idx = lowerLine.indexOf(lowerTerm)
+        if (idx === -1) continue
+        const matches = []
+        while (idx !== -1) {
+          matches.push({ index: idx, length: term.length })
+          idx = lowerLine.indexOf(lowerTerm, idx + term.length)
+        }
+        results.push({
+          tabId: tab.id,
+          file: tab.filePath || '',
+          relativePath: tab.fileName,
+          line: i + 1,
+          lineContent: lines[i],
+          matches
+        })
+        if (results.length >= 500) break outer
+      }
+    }
+    searchResults.value = results
   } else {
     if (!store.projectRoot) {
       await openFolder()
@@ -517,6 +558,19 @@ async function doSearch() {
 }
 
 function openResult(result) {
+  // 来自"打开的文件"范围的结果：直接激活对应标签页（保留未保存内容），再跳转行号
+  if (result.tabId) {
+    const tab = store.tabs.find(t => t.id === result.tabId)
+    if (tab) {
+      store.setActiveTab(result.tabId)
+      // 双 nextTick：等待标签切换 + CodeMirror 文档更新完成后再定位
+      nextTick(() => nextTick(() => {
+        jumpToLine(result.line)
+        store.scrollSyncSource = { source: 'editor', line: result.line }
+      }))
+    }
+    return
+  }
   // Open file and jump to line
   window.api?.readFile(result.file).then((res) => {
     if (res.success) {

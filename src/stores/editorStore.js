@@ -52,6 +52,8 @@ export const useEditorStore = defineStore('editor', () => {
   const searchMode = ref('file')
   // 预览区搜索词高亮
   const searchHighlightTerm = ref('')
+  // 右键菜单等处发起的搜索请求：{ term, scope: 'file' | 'open' }，由搜索面板监听消费
+  const searchRequest = ref(null)
 
   // ── UI ──
   const showWelcome = ref(true)
@@ -357,7 +359,7 @@ export const useEditorStore = defineStore('editor', () => {
     projectRoot, fileTree, expandedPaths,
     isPathExpanded, togglePathExpanded, collapseAllPaths, expandPath,
     applyExpandedToTree,
-    searchQuery, searchResults, searchMode, searchHighlightTerm,
+    searchQuery, searchResults, searchMode, searchHighlightTerm, searchRequest,
     showWelcome, sidebarPanel, sidebarVisible, sidebarWidth, showSettings, showExport, showAbout, showQuickOpen, exportFormat,
     settings,
     recentFiles, recentFolders,
