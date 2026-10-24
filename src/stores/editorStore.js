@@ -102,6 +102,9 @@ export const useEditorStore = defineStore('editor', () => {
   const cursorLine = ref(1)
   const cursorCol = ref(1)
 
+  // ── 选中文本（状态栏选中统计用）──
+  const selectionText = ref('')
+
   // ── 滚动联动 ──
   const scrollSyncSource = ref(null)
 
@@ -261,6 +264,7 @@ export const useEditorStore = defineStore('editor', () => {
     recentFiles, recentFolders,
     content,
     cursorLine, cursorCol,
+    selectionText,
     scrollSyncSource,
     addTab, closeTab, closeOtherTabs, closeRightTabs, setActiveTab,
     updateTabOrder, markAsSaved,

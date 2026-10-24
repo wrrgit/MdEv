@@ -4,6 +4,12 @@
       <span class="status-item" v-if="store.activeTab">
         行 {{ store.cursorLine }}, 列 {{ store.cursorCol }}
       </span>
+      <span class="status-item stat-item" v-if="docStats.chars > 0" title="字数统计（CJK 字符 + 西文单词）">
+        {{ docStats.chars }} 字 · {{ docStats.lines }} 行 · 约 {{ docStats.readMin }} 分钟
+      </span>
+      <span class="status-item stat-item selected" v-if="selectionChars > 0">
+        已选 {{ selectionChars }} 字
+      </span>
     </div>
     <div class="status-right">
       <button class="view-mode-btn" @click="cycleViewMode" :title="viewModeLabel">
@@ -16,7 +22,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch, onUnmounted } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
 
 const store = useEditorStore()
@@ -29,6 +35,34 @@ function cycleViewMode() {
   const idx = order.indexOf(store.settings.viewMode)
   store.settings.viewMode = order[(idx + 1) % order.length]
 }
+
+// ── 字数统计（对标 Typora：CJK 字符 + 西文单词）──
+function countChars(text) {
+  if (!text) return 0
+  const cjk = (text.match(/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/g) || []).length
+  const latinWords = (text.match(/[A-Za-z0-9]+(?:['\u2019-][A-Za-z0-9]+)*/g) || []).length
+  return cjk + latinWords
+}
+
+const docStats = ref({ chars: 0, lines: 0, readMin: 0 })
+let statsTimer = null
+
+// 全文统计做 300ms 防抖，避免大文档每次按键重算
+watch(() => store.content, (val) => {
+  clearTimeout(statsTimer)
+  statsTimer = setTimeout(() => {
+    const chars = countChars(val)
+    docStats.value = {
+      chars,
+      lines: val ? val.split('\n').length : 0,
+      readMin: chars > 0 ? Math.max(1, Math.ceil(chars / 400)) : 0
+    }
+  }, 300)
+}, { immediate: true })
+
+onUnmounted(() => clearTimeout(statsTimer))
+
+const selectionChars = computed(() => countChars(store.selectionText))
 </script>
 
 <style scoped>
@@ -52,6 +86,7 @@ function cycleViewMode() {
 .status-item.saved { color: var(--text-muted); }
 .status-item.saving { color: var(--accent-color); }
 .status-item.unsaved { color: #e78333; }
+.stat-item.selected { color: var(--accent-color); }
 .view-mode-btn {
   background: transparent;
   border: none;

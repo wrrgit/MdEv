@@ -88,6 +88,9 @@ function updateCursorPos(view) {
   const line = view.state.doc.lineAt(pos)
   store.cursorLine = line.number
   store.cursorCol = pos - line.from + 1
+  // 选中文本（状态栏选中统计用）
+  const sel = view.state.selection.main
+  store.selectionText = sel.empty ? '' : view.state.sliceDoc(sel.from, sel.to)
 }
 
 // ── 拖拽图片插入 ──
