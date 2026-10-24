@@ -29,6 +29,7 @@
     <StatusBar />
     <SettingsPanel />
     <ExportDialog />
+    <QuickOpen />
   </div>
 </template>
 
@@ -47,6 +48,7 @@ import PreviewPane from '@/components/PreviewPane.vue'
 import StatusBar from '@/components/StatusBar.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import ExportDialog from '@/components/ExportDialog.vue'
+import QuickOpen from '@/components/QuickOpen.vue'
 
 const store = useEditorStore()
 const previewRef = ref(null)
@@ -174,8 +176,17 @@ watch(() => store.projectRoot, (val) => {
   if (val) watchProjectFolder(val)
 })
 
+// ── 全局快捷键：Ctrl+P 快速打开 ──
+function onGlobalKeydown(e) {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'p') {
+    e.preventDefault()
+    if (store.projectRoot) store.showQuickOpen = !store.showQuickOpen
+  }
+}
+
 // ── Lifecycle ──
 onMounted(async () => {
+  window.addEventListener('keydown', onGlobalKeydown)
   await loadSavedSettings()
   initTheme()
   watchThemeChanges()
@@ -288,6 +299,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', onGlobalKeydown)
   if (window.api?.removeMenuListener) {
     const channels = [
       'menu:new-file', 'menu:open-file', 'menu:open-folder',

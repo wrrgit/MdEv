@@ -61,6 +61,7 @@ export const useEditorStore = defineStore('editor', () => {
   const showSettings = ref(false)
   const showExport = ref(false)
   const showAbout = ref(false)
+  const showQuickOpen = ref(false)
   const exportFormat = ref('pdf')
 
   // ── 设置 ──
@@ -319,7 +320,7 @@ export const useEditorStore = defineStore('editor', () => {
     isPathExpanded, togglePathExpanded, collapseAllPaths, expandPath,
     applyExpandedToTree,
     searchQuery, searchResults, searchMode, searchHighlightTerm,
-    showWelcome, sidebarPanel, sidebarVisible, sidebarWidth, showSettings, showExport, showAbout, exportFormat,
+    showWelcome, sidebarPanel, sidebarVisible, sidebarWidth, showSettings, showExport, showAbout, showQuickOpen, exportFormat,
     settings,
     recentFiles, recentFolders,
     content,
