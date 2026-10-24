@@ -107,6 +107,15 @@ export const useEditorStore = defineStore('editor', () => {
 
   // ── 标签操作 ──
   function addTab(filePath = null, content = '', fileName = '未命名.md') {
+    // 去重：同一路径的文件已打开时，直接激活已有标签页（避免重复标签）
+    if (filePath) {
+      const existing = tabs.value.find(t => t.filePath === filePath)
+      if (existing) {
+        activeTabId.value = existing.id
+        showWelcome.value = false
+        return existing.id
+      }
+    }
     const id = generateId()
     const tab = {
       id,

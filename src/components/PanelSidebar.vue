@@ -188,6 +188,7 @@
 <script setup>
 import { ref, computed, nextTick } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
+import { setSearchQuery, SearchQuery, openSearchPanel } from '@codemirror/search'
 import FileTree from './FileTree.vue'
 
 const store = useEditorStore()
@@ -457,10 +458,16 @@ async function doSearch() {
   if (!searchInput.value.trim()) return
 
   if (searchScope.value === 'file') {
-    if (window.editorRef?.editorView) {
-      const view = window.editorRef.editorView
-      // CM6 search is handled by the search extension
+    // 文件内搜索：把搜索词填入 CodeMirror 搜索面板并打开
+    const view = window.editorRef
+    if (view) {
+      view.dispatch({
+        effects: setSearchQuery.of(new SearchQuery({ search: searchInput.value }))
+      })
+      openSearchPanel(view)
+      view.focus()
     }
+    searchResults.value = []
   } else {
     if (!store.projectRoot) {
       await openFolder()
