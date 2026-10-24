@@ -50,6 +50,8 @@ export const useEditorStore = defineStore('editor', () => {
   const searchQuery = ref('')
   const searchResults = ref([])
   const searchMode = ref('file')
+  // 预览区搜索词高亮
+  const searchHighlightTerm = ref('')
 
   // ── UI ──
   const showWelcome = ref(true)
@@ -261,7 +263,7 @@ export const useEditorStore = defineStore('editor', () => {
     projectRoot, fileTree, expandedPaths,
     isPathExpanded, togglePathExpanded, collapseAllPaths, expandPath,
     applyExpandedToTree,
-    searchQuery, searchResults, searchMode,
+    searchQuery, searchResults, searchMode, searchHighlightTerm,
     showWelcome, sidebarPanel, sidebarVisible, sidebarWidth, showSettings, showExport, showAbout, exportFormat,
     settings,
     recentFiles, recentFolders,

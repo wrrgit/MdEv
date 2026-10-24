@@ -27,6 +27,67 @@ function rebuildAnchors() {
   anchorCache = content && scroller ? buildAnchors(content, scroller) : null
 }
 
+// ── 预览区搜索词高亮 ──
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function clearSearchHighlights() {
+  const content = previewContent.value
+  if (!content) return
+  for (const mark of content.querySelectorAll('mark.search-hit')) {
+    const parent = mark.parentNode
+    if (!parent) continue
+    parent.replaceChild(document.createTextNode(mark.textContent), mark)
+    parent.normalize()
+  }
+}
+
+function applySearchHighlights() {
+  const content = previewContent.value
+  const term = store.searchHighlightTerm
+  if (!content) return
+  clearSearchHighlights()
+  if (!term || term.length < 1) return
+
+  const rx = new RegExp(escapeRegExp(term), 'gi')
+  const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT
+      const p = node.parentElement
+      if (!p || p.closest('script, style, .search-hit')) return NodeFilter.FILTER_REJECT
+      return NodeFilter.FILTER_ACCEPT
+    }
+  })
+  const nodes = []
+  while (walker.nextNode()) nodes.push(walker.currentNode)
+
+  for (const node of nodes) {
+    const text = node.nodeValue
+    rx.lastIndex = 0
+    if (!rx.test(text)) continue
+    const frag = document.createDocumentFragment()
+    let lastIdx = 0
+    rx.lastIndex = 0
+    let m
+    while ((m = rx.exec(text)) !== null) {
+      if (m.index > lastIdx) frag.appendChild(document.createTextNode(text.slice(lastIdx, m.index)))
+      const mark = document.createElement('mark')
+      mark.className = 'search-hit'
+      mark.textContent = m[0]
+      frag.appendChild(mark)
+      lastIdx = m.index + m[0].length
+      if (m[0].length === 0) rx.lastIndex++
+    }
+    if (lastIdx < text.length) frag.appendChild(document.createTextNode(text.slice(lastIdx)))
+    node.parentNode.replaceChild(frag, node)
+  }
+}
+
+watch(() => store.searchHighlightTerm, () => {
+  nextTick(applySearchHighlights)
+})
+
 watch(() => store.content, async () => {
   if (!store.activeTab) {
     renderedHtml.value = ''
@@ -39,6 +100,7 @@ watch(() => store.content, async () => {
   await nextTick()
   await renderMermaidBlocks()
   rebuildAnchors()
+  applySearchHighlights()
 }, { immediate: true })
 
 // 字体/行高变化会改变预览布局，锚点需要重建
@@ -250,6 +312,18 @@ async function renderMermaidBlocks() {
 .markdown-body sub { font-size: 0.75em; vertical-align: sub; }
 .markdown-body sup { font-size: 0.75em; vertical-align: super; }
 .markdown-body mark { background: #fff3b0; padding: 0 2px; border-radius: 2px; }
+
+/* ── 搜索词高亮 ── */
+.markdown-body mark.search-hit {
+  background: #ffd43b;
+  color: inherit;
+  padding: 0 1px;
+  border-radius: 2px;
+}
+html[data-theme='dark'] .markdown-body mark.search-hit {
+  background: #a07c00;
+  color: #fff;
+}
 
 /* ── 脚注 ── */
 .markdown-body .footnote { font-size: 0.85em; color: var(--text-secondary); border-top: 1px solid var(--border-color); margin-top: 16px; padding-top: 8px; }

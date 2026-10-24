@@ -186,7 +186,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
 import { setSearchQuery, SearchQuery, openSearchPanel } from '@codemirror/search'
 import FileTree from './FileTree.vue'
@@ -195,6 +195,14 @@ const store = useEditorStore()
 const searchInput = ref('')
 const searchScope = ref('file')
 const searchResults = ref([])
+
+// 输入清空时同步清除预览区搜索高亮
+watch(searchInput, (val) => {
+  if (!val) {
+    store.searchHighlightTerm = ''
+    searchResults.value = []
+  }
+})
 
 const hasTabs = computed(() => store.tabs.length > 0)
 const hasFileTree = computed(() => store.fileTree.length > 0)
@@ -465,6 +473,9 @@ function toggleRootExpand() {
 async function doSearch() {
   if (!searchInput.value.trim()) return
 
+  // 预览区搜索词高亮（两种范围都生效）
+  store.searchHighlightTerm = searchInput.value
+
   if (searchScope.value === 'file') {
     // 文件内搜索：把搜索词填入 CodeMirror 搜索面板并打开
     const view = window.editorRef
@@ -494,7 +505,12 @@ function openResult(result) {
   window.api?.readFile(result.file).then((res) => {
     if (res.success) {
       store.addTab(result.file, res.content, result.fileName)
-      nextTick(() => jumpToLine(result.line))
+      // 双 nextTick：等待标签切换 + CodeMirror 文档更新完成后再定位
+      nextTick(() => nextTick(() => {
+        jumpToLine(result.line)
+        // 联动预览区滚动到目标行
+        store.scrollSyncSource = { source: 'editor', line: result.line }
+      }))
     }
   })
 }
