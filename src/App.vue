@@ -87,6 +87,25 @@ watch(
   { immediate: true }
 )
 
+// ── 编辑/预览字体与行高：main.css 里只是默认值，需按设置覆盖 CSS 变量才生效 ──
+function applyContentFonts() {
+  const s = store.settings
+  const root = document.documentElement
+  root.style.setProperty('--editor-font-family', s.editorFontFamily)
+  root.style.setProperty('--editor-font-size', `${s.editorFontSize}px`)
+  root.style.setProperty('--preview-font-family', s.previewFontFamily)
+  root.style.setProperty('--preview-font-size', `${s.previewFontSize}px`)
+  root.style.setProperty('--line-height', String(s.lineHeight))
+}
+
+watch(
+  [() => store.settings.editorFontFamily, () => store.settings.editorFontSize,
+   () => store.settings.previewFontFamily, () => store.settings.previewFontSize,
+   () => store.settings.lineHeight],
+  applyContentFonts,
+  { immediate: true }
+)
+
 const previewStyle = computed(() => {
   if (store.settings.viewMode !== 'dual') return {}
   return { flex: String(1 - splitRatio.value) }

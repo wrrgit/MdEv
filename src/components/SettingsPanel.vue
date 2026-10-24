@@ -199,6 +199,15 @@ const sections = [
 
 const localSettings = reactive({ ...store.settings })
 
+// 面板常驻挂载（v-show），每次打开时重新同步，否则会显示过期的主题等设置
+watch(
+  () => store.showSettings,
+  (open) => {
+    if (open) Object.assign(localSettings, store.settings)
+  },
+  { immediate: true }
+)
+
 function close() {
   store.showSettings = false
 }

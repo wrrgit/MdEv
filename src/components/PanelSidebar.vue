@@ -246,14 +246,14 @@ const themeIcon = computed(() => {
 })
 
 const themeTooltip = computed(() => {
-  const map = { light: '浅色', dark: '深色', system: '跟随系统' }
-  return `当前：${map[store.settings.theme] || '浅色'}，点击切换`
+  const map = { light: '浅色', dark: '深色', system: `跟随系统（当前${resolvedTheme.value === 'dark' ? '深色' : '浅色'}）` }
+  const next = resolvedTheme.value === 'dark' ? '浅色' : '深色'
+  return `当前：${map[store.settings.theme] || '浅色'}，点击切换到${next}`
 })
 
+// 侧栏图标直接翻转明暗，避免经过“跟随系统”时系统恰为同一模式、图标看起来没反应
 function cycleTheme() {
-  const order = ['light', 'dark', 'system']
-  const idx = order.indexOf(store.settings.theme)
-  store.settings.theme = order[(idx + 1) % order.length]
+  store.settings.theme = resolvedTheme.value === 'dark' ? 'light' : 'dark'
 }
 
 function increaseFontSize() {
