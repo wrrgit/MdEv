@@ -262,6 +262,45 @@ export const useEditorStore = defineStore('editor', () => {
     }
   }
 
+  // ── 文件树重命名/删除联动 ──
+  function isPathUnder(childPath, parentPath) {
+    return childPath.startsWith(parentPath + '\\') || childPath.startsWith(parentPath + '/')
+  }
+
+  function handlePathRenamed(oldPath, newPath) {
+    const newName = newPath.split(/[\\/]/).pop()
+    // 更新已打开标签的文件路径（含目录重命名时其下所有文件）
+    for (const t of tabs.value) {
+      if (!t.filePath) continue
+      if (t.filePath === oldPath) {
+        t.filePath = newPath
+        t.fileName = newName
+      } else if (isPathUnder(t.filePath, oldPath)) {
+        t.filePath = newPath + t.filePath.slice(oldPath.length)
+      }
+    }
+    // 同步展开状态
+    const s = new Set()
+    for (const p of expandedPaths.value) {
+      if (p === oldPath) s.add(newPath)
+      else if (isPathUnder(p, oldPath)) s.add(newPath + p.slice(oldPath.length))
+      else s.add(p)
+    }
+    expandedPaths.value = s
+  }
+
+  function handlePathDeleted(targetPath) {
+    // 关闭被删除文件（或目录下文件）的标签页
+    const toClose = tabs.value.filter(t => t.filePath && (t.filePath === targetPath || isPathUnder(t.filePath, targetPath)))
+    for (const t of toClose) closeTab(t.id)
+    // 清理展开状态
+    const s = new Set()
+    for (const p of expandedPaths.value) {
+      if (p !== targetPath && !isPathUnder(p, targetPath)) s.add(p)
+    }
+    expandedPaths.value = s
+  }
+
   // ── 持久化 ──
   function loadSettings(saved) {
     if (saved) {
@@ -295,6 +334,7 @@ export const useEditorStore = defineStore('editor', () => {
     updateTabOrder, markAsSaved,
     addRecentFile, addRecentFolder, toggleRecentPin, reorderRecent,
     setProjectRoot,
+    handlePathRenamed, handlePathDeleted,
     loadSettings, loadRecentData
   }
 })

@@ -1,4 +1,4 @@
-import { readFile, writeFile, readdir, mkdir, rename, unlink, access, constants, watch } from 'fs/promises'
+import { readFile, writeFile, readdir, mkdir, rename, unlink, rm, stat, access, constants, watch } from 'fs/promises'
 import { join, relative, extname, basename } from 'path'
 import { existsSync } from 'fs'
 
@@ -62,7 +62,12 @@ export function registerFileHandlers(ipcMain, mainWindow) {
 
   ipcMain.handle('file:delete', async (_, targetPath) => {
     try {
-      await unlink(targetPath)
+      const st = await stat(targetPath)
+      if (st.isDirectory()) {
+        await rm(targetPath, { recursive: true, force: true })
+      } else {
+        await unlink(targetPath)
+      }
       return { success: true }
     } catch (err) {
       return { success: false, error: err.message }

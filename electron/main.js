@@ -504,6 +504,13 @@ function registerIpcHandlers() {
     return shell.openPath(filePath)
   })
 
+  // ── 在系统文件管理器中显示文件 ──
+  ipcMain.handle('shell:showItemInFolder', async (_, filePath) => {
+    if (!filePath) return null
+    shell.showItemInFolder(filePath)
+    return true
+  })
+
   // ── 用系统浏览器打开外部链接 ──
   ipcMain.handle('shell:openExternal', async (_, url) => {
     if (!url) return null

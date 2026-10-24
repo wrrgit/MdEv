@@ -54,12 +54,21 @@
         </div>
       </div>
     </div>
+    <ContextMenu
+      :visible="menuVisible"
+      :x="menuX"
+      :y="menuY"
+      :items="menuItems"
+      @close="menuVisible = false"
+      @select="onMenuSelect"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
+import ContextMenu from './ContextMenu.vue'
 
 const props = defineProps({
   nodes: { type: Array, default: () => [] },
@@ -187,7 +196,95 @@ async function refreshTree() {
   }
 }
 
+// ── 右键菜单 ──
+const menuVisible = ref(false)
+const menuX = ref(0)
+const menuY = ref(0)
+const menuNode = ref(null)
+
+const menuItems = computed(() => {
+  const node = menuNode.value
+  if (!node) return []
+  const renameItem = { key: 'rename', label: '重命名' }
+  const deleteItem = { key: 'delete', label: '删除', danger: true }
+  const revealItem = { key: 'reveal', label: '在文件资源管理器中显示' }
+  if (node.type === 'directory') {
+    return [
+      { key: 'new-file', label: '新建文件' },
+      { key: 'new-folder', label: '新建文件夹' },
+      { separator: true },
+      renameItem,
+      deleteItem,
+      { separator: true },
+      revealItem
+    ]
+  }
+  return [renameItem, deleteItem, { separator: true }, revealItem]
+})
+
 function onContextMenu(event, node) {
+  menuNode.value = node
+  menuX.value = event.clientX
+  menuY.value = event.clientY
+  menuVisible.value = true
+}
+
+async function onMenuSelect(item) {
+  const node = menuNode.value
+  if (!node) return
+  switch (item.key) {
+    case 'new-file':
+      await onNewFile(node)
+      break
+    case 'new-folder':
+      await onNewFolder(node)
+      break
+    case 'rename':
+      await onRename(node)
+      break
+    case 'delete':
+      await onDelete(node)
+      break
+    case 'reveal':
+      window.api?.showItemInFolder(node.path)
+      break
+  }
+}
+
+async function onRename(node) {
+  const name = await window.api?.showInputBox({ title: '重命名', label: '新名称：', value: node.name })
+  if (!name || name === node.name) return
+  // 同目录下替换名称
+  const m = node.path.match(/^(.*[\\/])[^\\/]+$/)
+  if (!m) return
+  const newPath = m[1] + name
+  const exists = await window.api?.exists(newPath)
+  if (exists) {
+    alert('已存在同名文件或文件夹')
+    return
+  }
+  const result = await window.api?.rename(node.path, newPath)
+  if (result?.success) {
+    store.handlePathRenamed(node.path, newPath)
+    await refreshTree()
+  } else {
+    alert('重命名失败：' + (result?.error || '未知错误'))
+  }
+}
+
+async function onDelete(node) {
+  const isDir = node.type === 'directory'
+  const tip = isDir
+    ? `确定删除文件夹「${node.name}」及其全部内容吗？`
+    : `确定删除文件「${node.name}」吗？`
+  if (!window.confirm(tip + '\n此操作不可恢复。')) return
+  const result = await window.api?.delete(node.path)
+  if (result?.success) {
+    store.handlePathDeleted(node.path)
+    await refreshTree()
+  } else {
+    alert('删除失败：' + (result?.error || '未知错误'))
+  }
 }
 </script>
 

@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // ── Shell / 路径 ──
   openPath: (filePath) => ipcRenderer.invoke('shell:openPath', filePath),
+  showItemInFolder: (filePath) => ipcRenderer.invoke('shell:showItemInFolder', filePath),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   resolvePath: (relativePath, basePath) => ipcRenderer.invoke('file:resolvePath', relativePath, basePath),
 
