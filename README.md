@@ -109,9 +109,9 @@ MdEv 是一款基于 Electron + Vue 3 + CodeMirror 6 构建的 Windows 桌面端
 
 ### 方式一：直接下载（推荐普通用户）
 
-前往 [Releases 页面](https://github.com/wrrgit/MdEv/releases) 下载最新版本的 `MdEv Setup 0.5.0.exe`，双击即可安装运行。
+前往 [Releases 页面](https://github.com/wrrgit/MdEv/releases) 下载最新版本的 `MdEv-Setup-0.5.0.exe`，双击即可安装运行。
 
-> 也可下载便携版 `MdEv 0.5.0.exe`，无需安装，双击即用。
+> 也可下载便携版 `MdEv-Portable-0.5.0.exe`，无需安装，双击即用。
 
 ### 方式二：从源码构建
 
