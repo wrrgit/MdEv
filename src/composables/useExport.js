@@ -24,7 +24,7 @@ export function useExport() {
 
   async function exportPdf(options = {}) {
     isExporting.value = true
-    exportProgress.value = '正在生成 PDF...'
+    exportProgress.value = '正在渲染内容…'
 
     try {
       const content = await getRenderedHtml()
@@ -33,6 +33,7 @@ export function useExport() {
         return { success: false, error: 'No content to export' }
       }
 
+      exportProgress.value = '正在生成 PDF…'
       const result = await window.api?.exportPdf({
         pageSize: options.pageSize || 'A4',
         marginTop: options.marginTop || 0.75,
@@ -64,7 +65,7 @@ export function useExport() {
 
   async function exportHtml(options = {}) {
     isExporting.value = true
-    exportProgress.value = '正在生成 HTML...'
+    exportProgress.value = '正在渲染内容…'
 
     try {
       const content = await getRenderedHtml()
@@ -73,6 +74,7 @@ export function useExport() {
         return { success: false, error: 'No content to export' }
       }
 
+      exportProgress.value = '正在生成 HTML…'
       const result = await window.api?.exportHtml({
         defaultPath: getBaseName() + '.html',
         content,
@@ -97,10 +99,48 @@ export function useExport() {
     }
   }
 
+  async function exportPng(options = {}) {
+    isExporting.value = true
+    exportProgress.value = '正在渲染内容…'
+
+    try {
+      const content = await getRenderedHtml()
+      if (!content) {
+        exportProgress.value = '没有内容可导出'
+        return { success: false, error: 'No content to export' }
+      }
+
+      exportProgress.value = '正在生成图片…'
+      const result = await window.api?.exportPng({
+        defaultPath: getBaseName() + '.png',
+        content,
+        theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
+        scale: options.scale || 2
+      })
+
+      if (result?.success) {
+        exportProgress.value = 'PNG 导出成功'
+        return { success: true, filePath: result.filePath }
+      } else if (result?.canceled) {
+        exportProgress.value = '已取消'
+        return { success: false, canceled: true }
+      } else {
+        exportProgress.value = '导出失败: ' + (result?.error || '未知错误')
+        return { success: false, error: result?.error }
+      }
+    } catch (err) {
+      exportProgress.value = '导出失败: ' + err.message
+      return { success: false, error: err.message }
+    } finally {
+      isExporting.value = false
+    }
+  }
+
   return {
     isExporting,
     exportProgress,
     exportPdf,
-    exportHtml
+    exportHtml,
+    exportPng
   }
 }

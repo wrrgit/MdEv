@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('api', {
   // ── 导出 ──
   exportPdf: (options) => ipcRenderer.invoke('export:pdf', options),
   exportHtml: (options) => ipcRenderer.invoke('export:html', options),
+  exportPng: (options) => ipcRenderer.invoke('export:png', options),
 
   // ── 设置 ──
   getSettings: () => ipcRenderer.invoke('settings:get'),

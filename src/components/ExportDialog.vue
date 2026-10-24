@@ -25,6 +25,14 @@
               <span class="type-icon">🌐</span>
               <span>HTML</span>
             </button>
+            <button
+              class="type-btn"
+              :class="{ active: exportType === 'png' }"
+              @click="switchType('png')"
+            >
+              <span class="type-icon">🖼</span>
+              <span>PNG</span>
+            </button>
           </div>
 
           <div class="export-settings">
@@ -47,7 +55,7 @@
                 </div>
               </div>
             </div>
-            <div v-else class="html-settings">
+            <div v-else-if="exportType === 'html'" class="html-settings">
               <div class="form-group">
                 <label class="toggle-label">
                   <input type="checkbox" v-model="htmlOptions.standalone" />
@@ -61,6 +69,16 @@
                 </label>
               </div>
             </div>
+            <div v-else class="png-settings">
+              <div class="form-group">
+                <label>清晰度</label>
+                <select v-model.number="pngOptions.scale">
+                  <option :value="1">1x（标准）</option>
+                  <option :value="2">2x（高清，推荐）</option>
+                  <option :value="3">3x（超清）</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -72,8 +90,9 @@
         </div>
       </div>
 
-      <div class="export-status" v-if="exportStatus">
-        {{ exportStatus }}
+      <div class="export-status" v-if="isExporting || exportStatus">
+        <span v-if="isExporting" class="spinner"></span>
+        <span>{{ isExporting ? exportProgress : exportStatus }}</span>
       </div>
 
       <div class="export-footer">
@@ -93,7 +112,7 @@ import { useExport } from '@/composables/useExport'
 import { parseMarkdown } from '@/core/markdown/parser'
 
 const store = useEditorStore()
-const { isExporting, exportProgress, exportPdf, exportHtml } = useExport()
+const { isExporting, exportProgress, exportPdf, exportHtml, exportPng } = useExport()
 
 const exportType = ref(store.exportFormat || 'pdf')
 const exportStatus = ref('')
@@ -110,6 +129,10 @@ const pdfOptions = ref({
 const htmlOptions = ref({
   standalone: true,
   includeMermaid: true
+})
+
+const pngOptions = ref({
+  scale: 2
 })
 
 // 打开弹窗时同步 exportType
@@ -144,6 +167,9 @@ async function doExport() {
       break
     case 'html':
       result = await exportHtml()
+      break
+    case 'png':
+      result = await exportPng(pngOptions.value)
       break
   }
 
@@ -279,11 +305,26 @@ function close() {
   background: var(--bg-primary);
 }
 .export-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 24px;
   font-size: 13px;
   color: var(--text-secondary);
   border-top: 1px solid var(--border-color);
   flex-shrink: 0;
+}
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--accent-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 .export-footer {
   display: flex;

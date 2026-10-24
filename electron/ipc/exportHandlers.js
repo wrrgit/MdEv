@@ -169,6 +169,63 @@ function waitForReady(webContents, delayMs = 400) {
   })
 }
 
+// PNG 导出：隐藏窗口加载完整 HTML 后整页截图
+// 与 PDF 共用同一套渲染管线（KaTeX 内联字体 + hljs 样式），
+// 比前端 html2canvas 对公式/SVG/代码高亮的兼容性好得多
+async function createPngCapture(html, scale = 2) {
+  const cssWidth = 940
+  // Windows 窗口物理尺寸有限制，按 scale 折算的 CSS 高度上限
+  const maxCssHeight = Math.floor(16384 / scale)
+
+  return new Promise((resolve, reject) => {
+    const win = new BrowserWindow({
+      show: false,
+      width: Math.ceil(cssWidth * scale),
+      height: Math.ceil(800 * scale),
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: true
+      }
+    })
+    // zoomFactor=scale：页面视口仍是 cssWidth CSS 像素宽，
+    // capturePage 输出放大 scale 倍的物理像素，保证清晰度
+    win.webContents.setZoomFactor(scale)
+
+    let settled = false
+    const finish = (fn, val) => {
+      if (settled) return
+      settled = true
+      try { fn(val) } catch (e) { reject(e) }
+      if (win && !win.isDestroyed()) win.close()
+    }
+
+    win.webContents.on('did-finish-load', async () => {
+      try {
+        // 等待图片/字体等异步资源加载、布局稳定
+        await new Promise(r => setTimeout(r, 500))
+        const height = await win.webContents.executeJavaScript(
+          'Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)'
+        )
+        const cssHeight = Math.min(Math.max(height, 200), maxCssHeight)
+        // 调整窗口到内容完整高度（物理像素 = CSS × scale），宽度不变
+        win.setContentSize(Math.ceil(cssWidth * scale), Math.ceil(cssHeight * scale))
+        await new Promise(r => setTimeout(r, 200))
+        const img = await win.webContents.capturePage()
+        finish(resolve, img.toPNG())
+      } catch (err) {
+        finish(reject, err)
+      }
+    })
+
+    win.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+      finish(reject, new Error(`Failed to load: ${errorDescription}`))
+    })
+
+    win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+  })
+}
+
 export function registerExportHandlers(ipcMain, mainWindow) {
   let exportWindow = null
 
@@ -272,6 +329,31 @@ export function registerExportHandlers(ipcMain, mainWindow) {
 
       const html = getExportHTML(content, { theme })
       await writeFile(result.filePath, html, 'utf8')
+
+      return { success: true, filePath: result.filePath }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('export:png', async (_, options = {}) => {
+    try {
+      const { defaultPath = 'export.png', content, theme, scale = 2 } = options
+
+      if (!content) {
+        return { success: false, error: 'No content to export' }
+      }
+
+      const result = await dialog.showSaveDialog(mainWindow, {
+        defaultPath,
+        filters: [{ name: 'PNG 图片', extensions: ['png'] }]
+      })
+
+      if (result.canceled) return { success: false, canceled: true }
+
+      const html = getExportHTML(content, { theme })
+      const pngData = await createPngCapture(html, scale)
+      await writeFile(result.filePath, pngData)
 
       return { success: true, filePath: result.filePath }
     } catch (err) {
