@@ -74,6 +74,8 @@ export const useEditorStore = defineStore('editor', () => {
     lineHeight: 1.6,
     tabSize: 4,
     wordWrap: false,
+    focusMode: false,
+    typewriterMode: false,
     showLineNumbers: true,
     highlightActiveLine: true,
     matchBrackets: true,

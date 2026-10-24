@@ -13,6 +13,18 @@
     </div>
     <div class="status-right">
       <span class="status-item file-notice" v-if="store.fileChangeNotice">{{ store.fileChangeNotice }}</span>
+      <button
+        class="mode-toggle-btn"
+        :class="{ active: store.settings.focusMode }"
+        @click="store.settings.focusMode = !store.settings.focusMode"
+        title="专注模式：淡化当前段落以外的内容"
+      >专注</button>
+      <button
+        class="mode-toggle-btn"
+        :class="{ active: store.settings.typewriterMode }"
+        @click="store.settings.typewriterMode = !store.settings.typewriterMode"
+        title="打字机模式：光标行保持垂直居中"
+      >打字机</button>
       <button class="view-mode-btn" @click="cycleViewMode" :title="viewModeLabel">
         {{ viewModeLabel }}
       </button>
@@ -112,5 +124,25 @@ const selectionChars = computed(() => countChars(store.selectionText))
 }
 .view-mode-btn:hover {
   color: var(--text-primary);
+}
+.mode-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-family: -apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  transition: color 0.12s, background-color 0.12s;
+}
+.mode-toggle-btn:hover {
+  color: var(--text-primary);
+  background: var(--hover-bg);
+}
+.mode-toggle-btn.active {
+  color: var(--accent-color);
+  font-weight: 600;
 }
 </style>

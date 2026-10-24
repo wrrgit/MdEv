@@ -24,6 +24,7 @@ import { useEditorStore } from '@/stores/editorStore'
 import { lockScrollSync, isScrollSyncLocked } from '@/core/scrollMapper'
 import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightSpecialChars, drawSelection, rectangularSelection } from '@codemirror/view'
 import { EditorState, Compartment, StateEffect, Prec } from '@codemirror/state'
+import { focusModeField, typewriterScroll } from '@/core/editor/focusTypewriter'
 import { defaultHighlightStyle, syntaxHighlighting, indentOnInput, bracketMatching, foldGutter, indentUnit } from '@codemirror/language'
 import { defaultKeymap, history, historyKeymap, indentWithTab, undo, redo } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
@@ -50,6 +51,9 @@ const onEditorReady = (payload) => {
   v.dispatch({
     effects: StateEffect.appendConfig.of([
       wordWrapCompartment.of(store.settings.wordWrap ? EditorView.lineWrapping : []),
+      // 专注模式（淡化非当前段落）/ 打字机模式（光标行居中），compartment 动态开关
+      focusCompartment.of(store.settings.focusMode ? focusModeField : []),
+      typewriterCompartment.of(store.settings.typewriterMode ? typewriterScroll : []),
       // Typora 式 Markdown 键位（最高优先级，先于 basicSetup 的默认键位）
       Prec.highest(keymap.of([
         { key: 'Mod-b', run: (view) => toggleWrap(view, '**') },
@@ -338,6 +342,8 @@ const baseExtensions = [
 // 自动换行通过 compartment 控制：onEditorReady 时 appendConfig 注册，
 // 切换时 reconfigure，不重建编辑器（光标/历史/滚动保留）。
 const wordWrapCompartment = new Compartment()
+const focusCompartment = new Compartment()
+const typewriterCompartment = new Compartment()
 
 const cmExtensions = computed(() => {
   const exts = [...baseExtensions]
@@ -365,6 +371,24 @@ watch(() => store.settings.wordWrap, (val) => {
   if (!v) return
   v.dispatch({
     effects: wordWrapCompartment.reconfigure(val ? EditorView.lineWrapping : [])
+  })
+})
+
+// 专注模式开关
+watch(() => store.settings.focusMode, (val) => {
+  const v = editorView.value
+  if (!v) return
+  v.dispatch({
+    effects: focusCompartment.reconfigure(val ? focusModeField : [])
+  })
+})
+
+// 打字机模式开关
+watch(() => store.settings.typewriterMode, (val) => {
+  const v = editorView.value
+  if (!v) return
+  v.dispatch({
+    effects: typewriterCompartment.reconfigure(val ? typewriterScroll : [])
   })
 })
 
@@ -397,6 +421,11 @@ onUnmounted(() => {
 }
 </style>
 <style>
+/* 专注模式：非当前段落淡化（全局样式，作用于 CM6 Decoration 注入的行） */
+.cm-focus-dim {
+  opacity: 0.35;
+  transition: opacity 0.2s ease;
+}
 .editor-pane .cm-scroller::-webkit-scrollbar-thumb {
   min-width: var(--editor-scroll-min-width, 40px);
 }
