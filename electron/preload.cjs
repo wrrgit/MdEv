@@ -11,6 +11,10 @@ contextBridge.exposeInMainWorld('api', {
   delete: (targetPath) => ipcRenderer.invoke('file:delete', targetPath),
   exists: (targetPath) => ipcRenderer.invoke('file:exists', targetPath),
 
+  // ── 图片 ──
+  saveClipboardImage: (basePath) => ipcRenderer.invoke('image:saveClipboardImage', basePath),
+  copyImageFile: (srcPath, basePath) => ipcRenderer.invoke('image:copyImageFile', srcPath, basePath),
+
   // ── 文件监听 ──
   watchDirectory: (dirPath) => ipcRenderer.invoke('file:watch', dirPath),
   unwatchDirectory: (dirPath) => ipcRenderer.invoke('file:unwatch', dirPath),

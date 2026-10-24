@@ -3,6 +3,7 @@ import { join, dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { registerFileHandlers } from './ipc/fileHandlers.js'
+import { registerImageHandlers } from './ipc/imageHandlers.js'
 import { registerSearchHandlers } from './ipc/searchHandlers.js'
 import { registerExportHandlers } from './ipc/exportHandlers.js'
 import { registerSettingsHandlers, getSettingsStore } from './ipc/settingsHandlers.js'
@@ -246,6 +247,7 @@ async function setupMenu() {
 
 function registerIpcHandlers() {
   registerFileHandlers(ipcMain, mainWindow)
+  registerImageHandlers(ipcMain)
   registerSearchHandlers(ipcMain)
   registerExportHandlers(ipcMain, mainWindow)
   registerSettingsHandlers(ipcMain)

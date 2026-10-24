@@ -69,7 +69,9 @@ const onEditorReady = (payload) => {
         { key: 'Shift-Enter', run: (view) => { view.dispatch(view.state.replaceSelection('\n')); return true } },
         { key: 'Tab', run: smartTab },
         { key: 'Shift-Tab', run: smartShiftTab }
-      ]))
+      ])),
+      // 剪贴板图片粘贴（截图 → assets 目录 → 插入相对路径引用）
+      EditorView.domEventHandlers({ paste: handlePaste })
     ])
   })
   // 源码行映射滚动同步：监听编辑器滚动
@@ -140,6 +142,45 @@ function updateCursorPos(view) {
 }
 
 // ── 拖拽图片插入 ──
+const IMAGE_EXT_RE = /\.(png|jpe?g|gif|bmp|webp|svg|ico|avif)$/i
+
+// 计算图片相对路径（ basePath 为空时返回原路径的 URL 形式）
+function computeRelPath(basePath, filePath) {
+  let imgPath = filePath.replace(/\\/g, '/')
+  if (basePath) {
+    const norm = (p) => p.replace(/\\/g, '/').replace(/\/+$/, '')
+    const baseParts = norm(basePath).split('/')
+    const targetParts = norm(filePath).split('/')
+    let i = 0
+    while (i < baseParts.length && i < targetParts.length &&
+      baseParts[i].toLowerCase() === targetParts[i].toLowerCase()) i++
+    const up = baseParts.length - i
+    const rest = targetParts.slice(i)
+    const parts = []
+    for (let j = 0; j < up; j++) parts.push('..')
+    parts.push(...rest)
+    imgPath = parts.join('/')
+  }
+  return imgPath
+}
+
+// 图片保存目录：当前文件所在目录（fallback 项目根）
+function getAssetBasePath() {
+  return store.activeTab?.filePath
+    ? store.activeTab.filePath.replace(/[\\/][^\\/]+$/, '')
+    : store.projectRoot || ''
+}
+
+function insertImageMarkdown(view, alt, imgPath) {
+  const md = `![${alt}](${imgPath})\n`
+  const pos = view.state.selection.main.head
+  view.dispatch({
+    changes: { from: pos, insert: md },
+    selection: { anchor: pos + md.length }
+  })
+  view.focus()
+}
+
 function onDrop(e) {
   const files = e.dataTransfer?.files
   if (!files || files.length === 0) return
@@ -148,37 +189,16 @@ function onDrop(e) {
   const v = editorView.value || window.editorRef
   if (!v) return
 
-  const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'avif']
+  const basePath = getAssetBasePath()
 
   for (const file of files) {
     // Electron: File 对象有 path 属性，包含完整文件路径
     const filePath = file.path
     if (!filePath) continue
-
-    const ext = filePath.toLowerCase().match(/\.([^.]+)$/)?.[1] || ''
-    if (!imageExts.includes(ext)) continue
-
-    // 计算相对路径
-    const basePath = store.activeTab?.filePath
-      ? store.activeTab.filePath.replace(/[\\/][^\\/]+$/, '')
-      : store.projectRoot || ''
-    let imgPath = filePath
-    if (basePath) {
-      const norm = (p) => p.replace(/\\/g, '/').replace(/\/+$/, '')
-      const baseParts = norm(basePath).split('/')
-      const targetParts = norm(filePath).split('/')
-      let i = 0
-      while (i < baseParts.length && i < targetParts.length &&
-        baseParts[i].toLowerCase() === targetParts[i].toLowerCase()) i++
-      const up = baseParts.length - i
-      const rest = targetParts.slice(i)
-      const parts = []
-      for (let j = 0; j < up; j++) parts.push('..')
-      parts.push(...rest)
-      imgPath = parts.join('/')
-    }
+    if (!IMAGE_EXT_RE.test(filePath)) continue
 
     const fileName = filePath.split(/[\\/]/).pop().replace(/\.[^.]+$/, '')
+    const imgPath = computeRelPath(basePath, filePath)
     const pos = v.state.selection.main.head
     v.dispatch({
       changes: { from: pos, insert: `![${fileName}](${imgPath})\n` },
@@ -186,6 +206,60 @@ function onDrop(e) {
     })
   }
   v.focus()
+}
+
+// ── 剪贴板图片粘贴 ──
+// 场景 1：剪贴板携带图片文件（从资源管理器/其他应用复制）→ 复制到 assets 并插入引用
+// 场景 2：剪贴板无文本（Win+Shift+S 截图、右键复制图片）→ 主进程读系统剪贴板存 PNG
+// 场景 3：纯文本/富文本粘贴 → 放行默认行为
+async function copyAndInsertImageFile(view, filePath) {
+  const basePath = getAssetBasePath()
+  if (basePath) {
+    const result = await window.api?.copyImageFile(filePath, basePath)
+    if (result?.success) {
+      const alt = filePath.split(/[\\/]/).pop().replace(/\.[^.]+$/, '')
+      insertImageMarkdown(view, alt, result.relativePath)
+      return
+    }
+  }
+  // 无可用保存目录（未保存文件且未打开文件夹）：退化为直接引用原文件路径
+  insertImageMarkdown(view,
+    filePath.split(/[\\/]/).pop().replace(/\.[^.]+$/, ''),
+    computeRelPath(basePath, filePath))
+}
+
+async function saveAndInsertClipboardImage(view) {
+  const basePath = getAssetBasePath()
+  if (!basePath) return
+  const result = await window.api?.saveClipboardImage(basePath)
+  if (result?.success) {
+    insertImageMarkdown(view, 'image', result.relativePath)
+  }
+}
+
+function handlePaste(event, view) {
+  const cd = event.clipboardData
+  if (!cd) return false
+  const types = Array.from(cd.types || [])
+  const files = Array.from(cd.files || [])
+  const imageFile = files.find(f =>
+    (f.type && f.type.startsWith('image/')) || IMAGE_EXT_RE.test(f.name || '')
+  )
+  const hasText = types.includes('text/plain') || types.includes('text/html')
+
+  // 图片文件（Electron 会带磁盘 path）：复制进 assets 后插入相对路径
+  if (imageFile && imageFile.path) {
+    event.preventDefault()
+    copyAndInsertImageFile(view, imageFile.path)
+    return true
+  }
+  // 无任何文本内容：截图/纯图片场景，交给主进程读取系统剪贴板
+  if (!hasText) {
+    event.preventDefault()
+    saveAndInsertClipboardImage(view)
+    return true
+  }
+  return false
 }
 
 const onContentChange = (val) => {
