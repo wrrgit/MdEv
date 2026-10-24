@@ -1,5 +1,5 @@
 import { readFile, writeFile, readdir, mkdir, rename, unlink, rm, stat, access, constants, watch } from 'fs/promises'
-import { join, relative, extname, basename } from 'path'
+import { join, extname } from 'path'
 import { existsSync } from 'fs'
 
 const watchedDirs = new Map()
