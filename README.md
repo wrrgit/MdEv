@@ -10,7 +10,7 @@ Markdown Editor for Windows — 左编辑右预览双栏布局，支持工程目
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D4.svg)](https://github.com/wrrgit/MdEv)
 [![Electron](https://img.shields.io/badge/Electron-33-47848F.svg)](https://www.electronjs.org/)
 [![Vue](https://img.shields.io/badge/Vue-3-42b883.svg)](https://vuejs.org/)
-[![Release](https://img.shields.io/badge/Release-v0.5.0-orange.svg)](https://github.com/wrrgit/MdEv/releases)
+[![Release](https://img.shields.io/badge/Release-v0.6.0-orange.svg)](https://github.com/wrrgit/MdEv/releases)
 
 [English](./README.en.md) | 简体中文
 
@@ -28,6 +28,14 @@ MdEv 是一款基于 Electron + Vue 3 + CodeMirror 6 构建的 Windows 桌面端
 - **所见即所得** — 左编辑右预览实时同步，滚动联动，写作体验流畅
 - **功能完备** — 内置数学公式、代码高亮、Mermaid 图表、PlantUML、目录导航、全文搜索
 - **开箱即用** — 下载即用，无需配置环境，也无需联网
+
+## 截图预览
+
+![主界面 — 左编辑右预览](screenshot/main.png)
+
+![欢迎页](screenshot/welcome.png)
+
+![编辑器 — 新建文档](screenshot/editor.png)
 
 ## 功能特性
 
@@ -109,9 +117,9 @@ MdEv 是一款基于 Electron + Vue 3 + CodeMirror 6 构建的 Windows 桌面端
 
 ### 方式一：直接下载（推荐普通用户）
 
-前往 [Releases 页面](https://github.com/wrrgit/MdEv/releases) 下载最新版本的 `MdEv-Setup-0.5.0.exe`，双击即可安装运行。
+前往 [Releases 页面](https://github.com/wrrgit/MdEv/releases) 下载最新版本的 `MdEv-Setup-0.6.0.exe`，双击即可安装运行。
 
-> 也可下载便携版 `MdEv-Portable-0.5.0.exe`，无需安装，双击即用。
+> 也可下载便携版 `MdEv-Portable-0.6.0.exe`，无需安装，双击即用。
 
 ### 方式二：从源码构建
 
@@ -142,7 +150,7 @@ npm run make
 npm run package
 ```
 
-打包产物位于 `release/` 目录下。
+打包产物位于 `D:\mdev-release\` 目录下（输出目录已配置在项目外）。
 
 ## 快捷键
 
@@ -231,7 +239,8 @@ MdEv/
 | v0.3.0 | 导航与搜索（TOC 高亮、搜索高亮、滚动同步、快速打开）          | ✅ 已发布  |
 | v0.4.0 | 导出扩展（PNG 导出、分步进度）                     | ✅ 已发布  |
 | v0.5.0 | 写作体验（专注/打字机、剪贴板粘贴、外部变更检测、文件树右键、草稿与会话恢复）    | ✅ 已发布  |
-| v0.6.0 | 打包与发布（自动更新、测试覆盖、用户手册）                 | 📋 计划中 |
+| v0.6.0 | 系统集成与交互增强（.md 文件关联、选中文本右键菜单、滚动同步修复、最近打开持久化） | ✅ 已发布  |
+| v0.7.0 | 打包与发布增强（自动更新、测试覆盖、用户手册）         | 📋 计划中 |
 | v1.0.0 | 正式发布                                   | 📋 计划中 |
 
 详见 [ROADMAP.md](./docs/ROADMAP.md)。

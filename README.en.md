@@ -10,7 +10,7 @@ Markdown Editor for Windows — split-pane layout with editor on the left and li
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D4.svg)](https://github.com/wrrgit/MdEv)
 [![Electron](https://img.shields.io/badge/Electron-33-47848F.svg)](https://www.electronjs.org/)
 [![Vue](https://img.shields.io/badge/Vue-3-42b883.svg)](https://vuejs.org/)
-[![Release](https://img.shields.io/badge/Release-v0.2.0-orange.svg)](https://github.com/wrrgit/MdEv/releases)
+[![Release](https://img.shields.io/badge/Release-v0.6.0-orange.svg)](https://github.com/wrrgit/MdEv/releases)
 
 English | [简体中文](./README.md)
 
@@ -28,6 +28,14 @@ MdEv is a Windows desktop Markdown editor built with Electron + Vue 3 + CodeMirr
 - **WYSIWYG** — Left editor and right preview sync in real time with linked scrolling for a smooth writing experience.
 - **Feature-Rich** — Built-in math formulas, syntax highlighting, Mermaid diagrams, PlantUML, outline navigation, and full-text search.
 - **Zero Config** — Download and run. No environment setup or internet connection required.
+
+## Screenshots
+
+![Main window — editor & live preview](screenshot/main.png)
+
+![Welcome page](screenshot/welcome.png)
+
+![Editor — new document](screenshot/editor.png)
 
 ## Features
 
@@ -88,9 +96,9 @@ MdEv is a Windows desktop Markdown editor built with Electron + Vue 3 + CodeMirr
 
 ### Option 1: Direct Download (Recommended)
 
-Go to the [Releases page](https://github.com/wrrgit/MdEv/releases) and download the latest `MdEv-Setup-0.2.0.exe`, then double-click to install.
+Go to the [Releases page](https://github.com/wrrgit/MdEv/releases) and download the latest `MdEv-Setup-0.6.0.exe`, then double-click to install.
 
-> A portable version `MdEv 0.2.0.exe` is also available — no installation required, just run it.
+> A portable version `MdEv-Portable-0.6.0.exe` is also available — no installation required, just run it.
 
 ### Option 2: Build from Source
 
@@ -121,7 +129,7 @@ npm run make
 npm run package
 ```
 
-Build artifacts are placed in the `release/` directory.
+Build artifacts are placed in `D:\mdev-release\` (the output directory is configured outside the project).
 
 ## Keyboard Shortcuts
 
@@ -200,9 +208,11 @@ MdEv/
 |---------|------|--------|
 | v0.1.0 | MVP core editor + preview + basic export | ✅ Released |
 | v0.2.0 | Toolbar enhancement + theme/font + recent files + image support + PlantUML | ✅ Released |
-| v0.3.0 | Navigation + search experience (TOC highlight, search highlight) | 📋 Planned |
-| v0.4.0 | Export expansion (PDF header/footer, progress indicator) | 📋 Planned |
-| v0.5.0 | Polish (custom shortcuts, clipboard paste, large file performance) | 📋 Planned |
+| v0.3.0 | Navigation + search experience (TOC highlight, search highlight, scroll sync, quick open) | ✅ Released |
+| v0.4.0 | Export expansion (PNG export, step-by-step progress) | ✅ Released |
+| v0.5.0 | Writing experience (focus/typewriter mode, clipboard paste, external change detection, file tree context menu, drafts & session restore) | ✅ Released |
+| v0.6.0 | System integration & interaction (`.md` file association, selection context menu, scroll sync fix, recents persistence) | ✅ Released |
+| v0.7.0 | Packaging & release enhancements (auto-update, test coverage, user manual) | 📋 Planned |
 | v1.0.0 | Official release | 📋 Planned |
 
 See [ROADMAP.md](./docs/ROADMAP.md) for details.
