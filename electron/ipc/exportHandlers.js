@@ -55,6 +55,13 @@ const css = `
   .markdown-body .task-list-item { list-style: none; }
   .markdown-body .task-list-item input { margin-right: 8px; }
   .markdown-body .mermaid { text-align: center; margin: 16px 0; }
+  .markdown-body .front-matter { margin: 0 0 20px; border: 1px solid #e1e4e8; border-radius: 6px; overflow: hidden; background: #f6f8fa; }
+  .markdown-body .fm-table { width: 100%; border-collapse: collapse; margin: 0; font-size: 13px; }
+  .markdown-body .fm-table tr { background: transparent; }
+  .markdown-body .fm-table th { width: 140px; padding: 6px 12px; text-align: left; font-weight: 600; color: #586069; background: #f6f8fa; border-bottom: 1px solid #e1e4e8; vertical-align: top; white-space: nowrap; }
+  .markdown-body .fm-table td { padding: 6px 12px; border-bottom: 1px solid #e1e4e8; color: #24292e; word-break: break-word; }
+  .markdown-body .fm-table tr:last-child th, .markdown-body .fm-table tr:last-child td { border-bottom: none; }
+  .markdown-body .fm-tag { display: inline-block; padding: 1px 8px; margin: 1px 2px; font-size: 12px; border-radius: 10px; background: #0366d6; color: #fff; }
   .katex { font-size: 1.1em !important; }
   .katex-display { overflow-x: auto; overflow-y: hidden; padding: 8px 0; }
   .hljs { background: #f6f8fa !important; }
@@ -89,6 +96,13 @@ const darkCss = `
   .markdown-body .task-list-item { list-style: none; }
   .markdown-body .task-list-item input { margin-right: 8px; }
   .markdown-body .mermaid { text-align: center; margin: 16px 0; }
+  .markdown-body .front-matter { margin: 0 0 20px; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; background: #161b22; }
+  .markdown-body .fm-table { width: 100%; border-collapse: collapse; margin: 0; font-size: 13px; }
+  .markdown-body .fm-table tr { background: transparent; }
+  .markdown-body .fm-table th { width: 140px; padding: 6px 12px; text-align: left; font-weight: 600; color: #8b949e; background: #161b22; border-bottom: 1px solid #30363d; vertical-align: top; white-space: nowrap; }
+  .markdown-body .fm-table td { padding: 6px 12px; border-bottom: 1px solid #30363d; color: #c9d1d9; word-break: break-word; }
+  .markdown-body .fm-table tr:last-child th, .markdown-body .fm-table tr:last-child td { border-bottom: none; }
+  .markdown-body .fm-tag { display: inline-block; padding: 1px 8px; margin: 1px 2px; font-size: 12px; border-radius: 10px; background: #58a6ff; color: #0d1117; }
   .katex { font-size: 1.1em !important; }
   .katex-display { overflow-x: auto; overflow-y: hidden; padding: 8px 0; }
   .hljs { background: #161b22 !important; color: #c9d1d9; }

@@ -33,6 +33,7 @@ import ini from 'highlight.js/lib/languages/ini'
 import dockerfile from 'highlight.js/lib/languages/dockerfile'
 import plaintext from 'highlight.js/lib/languages/plaintext'
 import plantumlEncoder from 'plantuml-encoder'
+import { extractFrontMatter, renderFrontMatter } from './frontMatter'
 import 'highlight.js/styles/github.css'
 
 hljs.registerLanguage('javascript', javascript)
@@ -263,12 +264,18 @@ export async function parseMarkdown(content, context = {}) {
     // 解析相对图片路径
     let processed = resolveImagePaths(content, context)
 
+    // 提取 YAML front-matter：预览渲染为属性表格，等量空行占位保持行号映射
+    const fm = extractFrontMatter(processed)
+    if (fm) processed = fm.placeholder + fm.body
+
     const hasLatex = /\$[^$]+\$|\$\$[^$]+\$\$/.test(processed)
     if (hasLatex) {
       await ensureKatexPlugin()
     }
 
     let html = parser.render(processed)
+
+    if (fm) html = renderFrontMatter(fm.meta) + html
 
     html = DOMPurify.sanitize(html, {
       ADD_TAGS: ['math', 'semantics', 'annotation', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'msqrt', 'mover', 'munder', 'mtable', 'mtr', 'mtd', 'details', 'summary'],

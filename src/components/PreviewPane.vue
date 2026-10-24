@@ -373,6 +373,52 @@ html[data-theme='dark'] .markdown-body mark.search-hit {
 .markdown-body .plantuml-diagram { max-width: 100%; height: auto; border: 1px solid var(--border-color); border-radius: 4px; }
 .markdown-body .plantuml-source { margin-top: 4px; text-align: left; }
 .markdown-body .plantuml-source summary { cursor: pointer; font-size: 12px; color: var(--text-muted); }
+
+/* ── YAML Front-matter（Typora 风格属性表格）── */
+.markdown-body .front-matter {
+  margin: 0 0 20px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-secondary);
+}
+.markdown-body .fm-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 !important;
+  font-size: 13px;
+}
+.markdown-body .fm-table tr { background: transparent !important; }
+.markdown-body .fm-table th {
+  width: 140px;
+  padding: 6px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: top;
+  white-space: nowrap;
+}
+.markdown-body .fm-table td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+  word-break: break-word;
+}
+.markdown-body .fm-table tr:last-child th,
+.markdown-body .fm-table tr:last-child td { border-bottom: none; }
+.markdown-body .fm-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  margin: 1px 2px;
+  font-size: 12px;
+  border-radius: 10px;
+  background: var(--accent-color);
+  color: #fff;
+  opacity: 0.85;
+}
+.markdown-body .fm-value { font-family: inherit; }
 .markdown-body .plantuml-source summary:hover { color: var(--text-secondary); }
 .markdown-body .plantuml-source pre { margin-top: 4px; }
 </style>
