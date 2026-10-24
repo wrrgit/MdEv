@@ -103,5 +103,5 @@ export function renderFrontMatter(meta) {
     }
     return `<tr><th>${esc(k)}</th><td>${valueHtml}</td></tr>`
   }).join('')
-  return `<div class="front-matter" data-source-line="0"><table class="fm-table"><tbody>${rows}</tbody></table></div>`
+  return `<div class="front-matter" data-source-line="1"><table class="fm-table"><tbody>${rows}</tbody></table></div>`
 }

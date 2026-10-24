@@ -96,18 +96,38 @@ function onEditorScroll() {
     editorScrollRaf = false
     const v = editorView.value
     if (!v || store.settings.viewMode === 'preview') return
-    // 视口顶部对应的源码行号
-    let topLine = 1
-    try {
-      const block = v.lineBlockAtHeight(v.scrollDOM.scrollTop + 4)
-      topLine = v.state.doc.lineAt(block.from).number
-    } catch { return }
+    const info = viewportLineInfo(v)
+    if (!info) return
     // TOC 当前章节
-    const h = lastHeadingLine(v, topLine)
+    const h = lastHeadingLine(v, Math.floor(info.line))
     if (h) store.currentTocLine = h
-    if (!store.settings.scrollSync || isScrollSyncLocked()) return
-    store.scrollSyncSource = { source: 'editor', line: topLine }
+    if (!store.settings.scrollSync || isScrollSyncLocked('editor')) return
+    const el = v.scrollDOM
+    store.scrollSyncSource = {
+      source: 'editor',
+      line: info.line,
+      atBottom: el.scrollTop >= el.scrollHeight - el.clientHeight - 2
+    }
   })
+}
+
+// 视口顶部对应的源码位置：1 基浮点行号（整数部分为行号，小数部分为行内比例），
+// 同时给出该行块在视口中的实际 y，供反向滚动精确换算。
+function viewportLineInfo(v) {
+  const scRect = v.scrollDOM.getBoundingClientRect()
+  const cdLeft = v.contentDOM.getBoundingClientRect().left + 8
+  let pos = null
+  try {
+    pos = v.posAtCoords({ x: cdLeft, y: scRect.top + 1 }, false)
+  } catch { return null }
+  if (pos == null) return null
+  const info = v.state.doc.lineAt(pos)
+  const block = v.lineBlockAt(info.from)
+  const h = Math.max(1, block.bottom - block.top)
+  const coords = v.coordsAtPos(info.from)
+  const y0 = coords ? coords.top - scRect.top : 0
+  const frac = coords ? Math.min(1, Math.max(0, -y0 / h)) : 0
+  return { line: info.number + frac, blockTop: block.top, blockHeight: h, viewportY: y0 }
 }
 
 // 从 fromLine 向上找到最近一个标题行
@@ -120,18 +140,32 @@ function lastHeadingLine(v, fromLine) {
   return 0
 }
 
+// 将编辑器滚动到指定源码位置（1 基浮点行号），使该行（含行内比例）对齐视口顶部
+function scrollEditorToLine(v, line, atBottom) {
+  const el = v.scrollDOM
+  lockScrollSync('editor')
+  if (atBottom) {
+    el.scrollTop = el.scrollHeight - el.clientHeight
+    return
+  }
+  const info = viewportLineInfo(v)
+  if (!info) return
+  const doc = v.state.doc
+  const clamped = Math.max(1, Math.min(doc.lines, line))
+  const n = Math.floor(clamped)
+  const frac = Math.min(0.999, Math.max(0, clamped - n))
+  const block = v.lineBlockAt(doc.line(n).from)
+  const h = block.bottom - block.top
+  // 目标文档坐标在视口中的位置 = 已知行的视口位置 + 文档坐标差 → 换算成 scrollTop
+  const targetViewportY = info.viewportY + (block.top + h * frac - info.blockTop)
+  el.scrollTop = Math.max(0, el.scrollTop + targetViewportY)
+}
+
 watch(() => store.scrollSyncSource, (val) => {
   if (!val || val.source === 'editor' || !store.settings.scrollSync) return
   const v = editorView.value
   if (!v || store.settings.viewMode === 'preview') return
-  const line = Math.max(1, Math.min(Math.round(val.line), v.state.doc.lines))
-  const pos = v.state.doc.line(line).from
-  const coords = v.coordsAtPos(pos)
-  if (!coords) return
-  const rect = v.scrollDOM.getBoundingClientRect()
-  lockScrollSync()
-  // 将目标行对齐到编辑器视口顶部
-  v.scrollDOM.scrollTop = v.scrollDOM.scrollTop + (coords.top - rect.top)
+  scrollEditorToLine(v, val.line, val.atBottom)
 })
 
 function updateCursorPos(view) {

@@ -40,3 +40,6 @@ npm-debug.log*
 test-out.txt
 test-reactivity*.mjs
 *.timestamp-*.mjs
+
+# WorkBuddy local workspace data
+.workbuddy/

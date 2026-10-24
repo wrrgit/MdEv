@@ -7,7 +7,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
 import { parseMarkdown } from '@/core/markdown/parser'
 import { buildAnchors, yToLine, lineToY, currentHeadingLine, lockScrollSync, isScrollSyncLocked } from '@/core/scrollMapper'
@@ -108,15 +108,39 @@ watch(() => [store.settings.previewFontSize, store.settings.previewFontFamily, s
   nextTick(rebuildAnchors)
 })
 
+// 视图模式 / 预览区尺寸变化（窗口 resize、侧栏拖动、切到双栏）都会让文字重新折行，锚点必须重建
+watch(() => store.settings.viewMode, () => nextTick(rebuildAnchors))
+
+let resizeObserver = null
+onMounted(() => {
+  resizeObserver = new ResizeObserver(() => rebuildAnchors())
+  if (previewScroll.value) resizeObserver.observe(previewScroll.value)
+  if (previewContent.value) resizeObserver.observe(previewContent.value)
+})
+onUnmounted(() => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+})
+
 watch(() => store.scrollSyncSource, (val) => {
   if (!val || val.source === 'preview' || !store.settings.scrollSync) return
   if (store.settings.viewMode === 'edit') return
   const el = previewScroll.value
-  const cache = anchorCache
+  let cache = anchorCache
+  // 自愈：编辑器驱动同步时锚点缺失，现场重建一次再换算
+  if ((!cache || cache.anchors.length === 0) && el) {
+    rebuildAnchors()
+    cache = anchorCache
+  }
   if (!el || !cache || cache.anchors.length === 0) return
+  lockScrollSync('preview')
+  // 编辑区已到底：预览区也跟到底，避免文档末尾左右错位
+  if (val.atBottom) {
+    el.scrollTop = el.scrollHeight - el.clientHeight
+    return
+  }
   const y = lineToY(cache.anchors, val.line)
   if (y == null) return
-  lockScrollSync()
   el.scrollTop = Math.max(0, y + cache.pad)
 })
 
@@ -133,16 +157,26 @@ function onPreviewScroll() {
   requestAnimationFrame(() => {
     scrollRafPending = false
     const el = previewScroll.value
-    const cache = anchorCache
+    let cache = anchorCache
+    // 自愈：锚点缓存缺失（如启动时序、隐藏期间重建）导致联动失效时，现场重建一次
+    if ((!cache || cache.anchors.length === 0) && el) {
+      rebuildAnchors()
+      cache = anchorCache
+    }
     if (!el || !cache || cache.anchors.length === 0) return
     const y = el.scrollTop - cache.pad
     // TOC 当前章节高亮（不依赖滚动同步开关）
     const h = currentHeadingLine(cache.anchors, y)
     if (h) store.currentTocLine = h
-    if (!store.settings.scrollSync || isScrollSyncLocked()) return
+    if (!store.settings.scrollSync || isScrollSyncLocked('preview')) return
     const line = yToLine(cache.anchors, y)
     if (line != null) {
-      store.scrollSyncSource = { source: 'preview', line: Math.max(1, Math.round(line)) }
+      // 传递 1 基浮点行号，保留块内比例，避免取整造成的半行错位
+      store.scrollSyncSource = {
+        source: 'preview',
+        line: Math.max(1, line),
+        atBottom: el.scrollTop >= el.scrollHeight - el.clientHeight - 2
+      }
     }
   })
 }

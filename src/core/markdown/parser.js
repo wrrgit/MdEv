@@ -173,12 +173,15 @@ function createMarkdownParser() {
   return md
 }
 
-// ── 源码行号注入：为块级元素添加 data-source-line，用于滚动同步与 TOC 高亮 ──
+// ── 源码行号注入：为块级元素添加 data-source-line / data-source-line-end，用于滚动同步与 TOC 高亮 ──
+// 行号统一为 1 基（与 CodeMirror 文档行号、TOC、搜索结果的约定一致）。
+// markdown-it 的 token.map 是 [起始行, 结束行) 的 0 基行号，故起始行 +1，结束行本身即 1 基末行。
 // 两条路径：
 // 1. 返回原始 HTML 的 renderer 规则（fence / html_block / container / texmath）→ 正则注入
 // 2. renderToken 默认路径的块级 token（*_open / hr）→ attrSet（幂等，可重复调用）
 function injectSourceLine(md) {
   const SL = 'data-source-line'
+  const SLE = 'data-source-line-end'
 
   for (const name of Object.keys(md.renderer.rules)) {
     const orig = md.renderer.rules[name]
@@ -187,7 +190,7 @@ function injectSourceLine(md) {
       const token = tokens[idx]
       const out = orig(tokens, idx, options, env, self)
       if (token && token.map && typeof out === 'string' && out.startsWith('<')) {
-        return out.replace(/^<([a-zA-Z][\w-]*)/, `<$1 ${SL}="${token.map[0]}"`)
+        return out.replace(/^<([a-zA-Z][\w-]*)/, `<$1 ${SL}="${token.map[0] + 1}" ${SLE}="${token.map[1]}"`)
       }
       return out
     }
@@ -200,7 +203,8 @@ function injectSourceLine(md) {
     const wrappedRenderToken = function (tokens, idx, options) {
       const token = tokens[idx]
       if (token && token.map && token.map.length > 0) {
-        token.attrSet(SL, String(token.map[0]))
+        token.attrSet(SL, String(token.map[0] + 1))
+        token.attrSet(SLE, String(token.map[1]))
       }
       return origRenderToken.call(this, tokens, idx, options)
     }
