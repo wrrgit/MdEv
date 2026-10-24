@@ -279,7 +279,9 @@ export async function parseMarkdown(content, context = {}) {
 
     html = DOMPurify.sanitize(html, {
       ADD_TAGS: ['math', 'semantics', 'annotation', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'msqrt', 'mover', 'munder', 'mtable', 'mtr', 'mtd', 'details', 'summary'],
-      ADD_ATTR: ['xmlns', 'data-*', 'aria-*', 'loading', 'class', 'src', 'alt', 'title']
+      ADD_ATTR: ['xmlns', 'data-*', 'aria-*', 'loading', 'class', 'src', 'alt', 'title'],
+      // 放行自定义 mdimg:// 本地图片协议（默认白名单不含它，src 会被剥掉导致图片不显示）
+      ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|callto|sms|cid|xmpp|matrix|ftp|ftps|mdimg|data|blob):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
     })
 
     return html
