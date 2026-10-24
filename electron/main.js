@@ -366,6 +366,21 @@ function registerIpcHandlers() {
     })
   })
 
+  // 关闭未命名草稿前的三选一确认：保存 / 不保存 / 取消
+  ipcMain.handle('dialog:confirmUnsaved', async (_, fileName) => {
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      buttons: ['保存', '不保存', '取消'],
+      defaultId: 0,
+      cancelId: 2,
+      noLink: true,
+      title: '未保存的文档',
+      message: `“${fileName || '未命名'}” 尚未保存为文件，是否保存？`,
+      detail: '选择“不保存”将丢弃该草稿内容。'
+    })
+    return ['save', 'discard', 'cancel'][response] || 'cancel'
+  })
+
   ipcMain.handle('dialog:showInputBox', async (_, options) => {
     return new Promise((resolve) => {
       const inputWin = new BrowserWindow({

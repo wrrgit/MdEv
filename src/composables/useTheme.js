@@ -50,6 +50,7 @@ export function useTheme() {
         if (data.settings) store.loadSettings(data.settings)
         if (data.recentFiles) store.recentFiles = data.recentFiles
         if (data.recentFolders) store.recentFolders = data.recentFolders
+        if (data.session) store.savedSession = data.session
       }
     } catch {
       // Settings not available (browser mode)

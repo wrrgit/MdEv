@@ -16,7 +16,7 @@
         <span class="tab-icon">{{ getFileIcon(tab.fileName) }}</span>
         <span class="tab-name">{{ tab.fileName }}</span>
         <span class="tab-dirty-dot" v-if="tab.isDirty"></span>
-        <button class="tab-close" @click.stop="store.closeTab(tab.id)" title="关闭">
+        <button class="tab-close" @click.stop="requestCloseTab(tab.id)" title="关闭">
           <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.2"/></svg>
         </button>
       </div>
@@ -27,8 +27,10 @@
 <script setup>
 import { ref } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
+import { useTabClose } from '@/composables/useTabClose'
 
 const store = useEditorStore()
+const { requestCloseTab } = useTabClose()
 const tabsContainer = ref(null)
 let dragTabId = null
 

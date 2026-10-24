@@ -228,6 +228,8 @@ async function saveAction() {
           tab.fileName = p.split(/[\\/]/).pop()
           store.markAsSaved()
           store.addRecentFile(p)
+          await window.api?.deleteDraft(tab.id)
+          tab.hasDraft = false
         }
       }
     }
@@ -249,6 +251,8 @@ async function saveAsAction() {
         tab.fileName = p.split(/[\\/]/).pop()
         store.markAsSaved()
         store.addRecentFile(p)
+        await window.api?.deleteDraft(tab.id)
+        tab.hasDraft = false
       }
     }
   } catch (e) {
@@ -421,7 +425,8 @@ function execute(item) {
   align-items: center;
   height: 100%;
   padding: 0 12px;
-  font-size: 13px;
+  font-family: var(--ui-font-family, inherit);
+  font-size: var(--ui-font-size, 13px);
   color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
@@ -447,7 +452,8 @@ function execute(item) {
   display: flex;
   align-items: center;
   padding: 6px 16px;
-  font-size: 13px;
+  font-family: var(--ui-font-family, inherit);
+  font-size: var(--ui-font-size, 13px);
   color: var(--text-primary);
   cursor: pointer;
   white-space: nowrap;

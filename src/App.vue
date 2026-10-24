@@ -38,6 +38,7 @@ import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
 import { useTheme } from '@/composables/useTheme'
 import { useAutoSave } from '@/composables/useAutoSave'
+import { useSession } from '@/composables/useSession'
 import TitleBar from '@/components/TitleBar.vue'
 import MenuBar from '@/components/MenuBar.vue'
 import TabBar from '@/components/TabBar.vue'
@@ -70,6 +71,21 @@ const {
   saveNow,
   saveAs
 } = useAutoSave()
+
+const { startPersistSession, restoreSession } = useSession()
+
+// ── 界面字体（菜单栏 / 标题栏路径等）跟随设置 ──
+function applyUiFont() {
+  const root = document.documentElement
+  root.style.setProperty('--ui-font-family', store.settings.uiFontFamily || 'inherit')
+  root.style.setProperty('--ui-font-size', `${store.settings.uiFontSize || 13}px`)
+}
+
+watch(
+  [() => store.settings.uiFontFamily, () => store.settings.uiFontSize],
+  applyUiFont,
+  { immediate: true }
+)
 
 const previewStyle = computed(() => {
   if (store.settings.viewMode !== 'dual') return {}
@@ -194,9 +210,13 @@ onMounted(async () => {
   listenForNativeTheme()
   watchSettingsChanges()
   startAutoSave()
+  startPersistSession()
   startFileWatchListener()
 
-  // ── 默认打开上次的文件夹和文件 ──
+  // ── 恢复上次未关闭的标签 / 文件夹 ──
+  const restored = await restoreSession()
+  if (!restored) {
+  // ── 无会话记录：默认打开上次的文件夹和文件 ──
   if (store.recentFolders.length > 0) {
     const lastFolder = store.recentFolders[0].path
     if (lastFolder) {
@@ -227,6 +247,7 @@ onMounted(async () => {
         }
       } catch {}
     }
+  }
   }
 
   if (window.api?.onMenuEvent) {

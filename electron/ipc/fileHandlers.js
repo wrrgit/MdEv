@@ -1,6 +1,7 @@
 import { readFile, writeFile, readdir, mkdir, rename, unlink, rm, stat, access, constants, watch } from 'fs/promises'
 import { join, extname } from 'path'
 import { existsSync } from 'fs'
+import { app } from 'electron'
 
 const watchedDirs = new Map()
 
@@ -109,6 +110,44 @@ export function registerFileHandlers(ipcMain, mainWindow) {
       watchedDirs.delete(dirPath)
     }
     return { success: true }
+  })
+
+  // ── 未命名文档草稿 ──
+  // 自动保存时写入 userData/drafts/<draftId>.md，避免被迫弹出"另存为"对话框；
+  // 用户显式保存（Ctrl+S / 菜单保存）时才弹窗确认路径与文件名，成功后删除草稿。
+  const draftsDir = join(app.getPath('userData'), 'drafts')
+
+  ipcMain.handle('draft:save', async (_, draftId, content) => {
+    try {
+      if (!draftId) return { success: false, error: 'no-draft-id' }
+      await mkdir(draftsDir, { recursive: true })
+      const draftPath = join(draftsDir, `${draftId}.md`)
+      await writeFile(draftPath, content ?? '', 'utf-8')
+      return { success: true, path: draftPath }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('draft:read', async (_, draftId) => {
+    try {
+      if (!draftId) return { success: false, error: 'no-draft-id' }
+      const draftPath = join(draftsDir, `${draftId}.md`)
+      if (!existsSync(draftPath)) return { success: false, error: 'draft-not-found' }
+      return { success: true, content: await readFile(draftPath, 'utf-8') }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('draft:delete', async (_, draftId) => {
+    try {
+      if (!draftId) return { success: true }
+      await rm(join(draftsDir, `${draftId}.md`), { force: true })
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
   })
 }
 

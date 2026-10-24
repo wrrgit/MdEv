@@ -11,6 +11,12 @@ contextBridge.exposeInMainWorld('api', {
   delete: (targetPath) => ipcRenderer.invoke('file:delete', targetPath),
   exists: (targetPath) => ipcRenderer.invoke('file:exists', targetPath),
 
+  // ── 未命名文档草稿（自动保存用）──
+  saveDraft: (draftId, content) => ipcRenderer.invoke('draft:save', draftId, content),
+  readDraft: (draftId) => ipcRenderer.invoke('draft:read', draftId),
+  deleteDraft: (draftId) => ipcRenderer.invoke('draft:delete', draftId),
+  confirmUnsaved: (fileName) => ipcRenderer.invoke('dialog:confirmUnsaved', fileName),
+
   // ── 图片 ──
   saveClipboardImage: (basePath) => ipcRenderer.invoke('image:saveClipboardImage', basePath),
   copyImageFile: (srcPath, basePath) => ipcRenderer.invoke('image:copyImageFile', srcPath, basePath),

@@ -67,6 +67,8 @@ export const useEditorStore = defineStore('editor', () => {
   // ── 设置 ──
   const settings = ref({
     theme: 'system',
+    uiFontFamily: "-apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif",
+    uiFontSize: 13,
     editorFontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace",
     editorFontSize: 15,
     previewFontFamily: "-apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif",
@@ -133,6 +135,15 @@ export const useEditorStore = defineStore('editor', () => {
   const suppressAutoSave = ref(false)
 
   // ── 标签操作 ──
+  // 未命名文档名：未命名.md、未命名 2.md、未命名 3.md …（避开当前已打开的临时文档名）
+  function nextUntitledName() {
+    const used = new Set(tabs.value.filter(t => !t.filePath).map(t => t.fileName))
+    if (!used.has('未命名.md')) return '未命名.md'
+    let n = 2
+    while (used.has(`未命名 ${n}.md`)) n++
+    return `未命名 ${n}.md`
+  }
+
   function addTab(filePath = null, content = '', fileName = '未命名.md') {
     // 去重：同一路径的文件已打开时，直接激活已有标签页（避免重复标签）
     if (filePath) {
@@ -142,6 +153,8 @@ export const useEditorStore = defineStore('editor', () => {
         showWelcome.value = false
         return existing.id
       }
+    } else if (fileName === '未命名.md') {
+      fileName = nextUntitledName()
     }
     const id = generateId()
     const tab = {
@@ -150,10 +163,29 @@ export const useEditorStore = defineStore('editor', () => {
       fileName,
       content,
       isDirty: false,
+      hasDraft: false,
       scrollPos: 0,
       cursorPos: { line: 0, col: 0 }
     }
     tabs.value.push(tab)
+    activeTabId.value = id
+    showWelcome.value = false
+    return id
+  }
+
+  // 会话恢复：以原有 id 重建未命名标签（沿用同一草稿文件）
+  function restoreTab({ id, fileName, content, hasDraft = false }) {
+    if (!id || tabs.value.some(t => t.id === id)) return null
+    tabs.value.push({
+      id,
+      filePath: null,
+      fileName,
+      content,
+      isDirty: false,
+      hasDraft,
+      scrollPos: 0,
+      cursorPos: { line: 0, col: 0 }
+    })
     activeTabId.value = id
     showWelcome.value = false
     return id
@@ -265,6 +297,10 @@ export const useEditorStore = defineStore('editor', () => {
     }
   }
 
+  // ── 会话恢复 ──
+  const savedSession = ref(null)   // 上次退出时的标签快照（loadSavedSettings 写入）
+  const restoringSession = ref(false)  // 恢复期间抑制会话持久化
+
   // ── 文件树重命名/删除联动 ──
   function isPathUnder(childPath, parentPath) {
     return childPath.startsWith(parentPath + '\\') || childPath.startsWith(parentPath + '/')
@@ -333,11 +369,12 @@ export const useEditorStore = defineStore('editor', () => {
     fileChangeNotice, notifyFileChange,
     lastAppSaveTime, markAppSave,
     suppressAutoSave,
-    addTab, closeTab, closeOtherTabs, closeRightTabs, setActiveTab,
+    addTab, restoreTab, closeTab, closeOtherTabs, closeRightTabs, setActiveTab,
     updateTabOrder, markAsSaved,
     addRecentFile, addRecentFolder, toggleRecentPin, reorderRecent,
     setProjectRoot,
     handlePathRenamed, handlePathDeleted,
+    savedSession, restoringSession,
     loadSettings, loadRecentData
   }
 })

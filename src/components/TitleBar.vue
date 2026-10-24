@@ -6,7 +6,15 @@
       </span>
       <span class="app-name">MdEv</span>
       <span class="title-divider"></span>
-      <span class="file-name">{{ currentFileName }}</span>
+      <span v-if="!pathSegments.length" class="file-name">{{ currentFileName }}</span>
+      <div v-else class="file-path" :title="currentFilePath">
+        <template v-for="(seg, i) in pathSegments" :key="i">
+          <span v-if="i > 0" class="path-sep">›</span>
+          <span class="path-seg" :class="{ 'path-file': i === pathSegments.length - 1 }">
+            {{ seg }}<template v-if="i === pathSegments.length - 1 && isDirty"> ●</template>
+          </span>
+        </template>
+      </div>
     </div>
     <div class="window-controls">
       <button class="win-btn minimize" @click="minimize" title="最小化">
@@ -32,6 +40,15 @@ const currentFileName = computed(() => {
   const tab = store.activeTab
   if (!tab) return ''
   return tab.isDirty ? `${tab.fileName} ●` : tab.fileName
+})
+
+const currentFilePath = computed(() => store.activeTab?.filePath || '')
+const isDirty = computed(() => !!store.activeTab?.isDirty)
+
+// MarkText 风格：路径按层级显示为面包屑，文件名高亮，超长时从左侧截断
+const pathSegments = computed(() => {
+  if (!currentFilePath.value) return []
+  return currentFilePath.value.split(/[\\/]/).filter(Boolean)
 })
 
 const minimize = () => window.api?.minimizeWindow()
@@ -84,12 +101,39 @@ const closeWindow = () => window.api?.closeWindow()
   margin: 0 4px;
 }
 .file-name {
-  font-size: 12px;
+  font-family: var(--ui-font-family, inherit);
+  font-size: var(--ui-font-size, 13px);
   color: var(--text-secondary);
   max-width: 400px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.file-path {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
+  max-width: 60%;
+  overflow: hidden;
+  font-family: var(--ui-font-family, inherit);
+  font-size: var(--ui-font-size, 13px);
+  white-space: nowrap;
+  direction: ltr;
+}
+.path-seg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+.path-file {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.path-sep {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  opacity: 0.6;
 }
 .window-controls {
   display: flex;

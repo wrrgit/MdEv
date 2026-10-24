@@ -71,10 +71,14 @@
             </button>
           </div>
         </div>
-        <div class="file-tree-area" v-if="store.fileTree.length > 0 && store.isPathExpanded(store.projectRoot)">
+        <div class="file-tree-area" v-if="store.projectRoot && store.fileTree.length > 0 && store.isPathExpanded(store.projectRoot)">
           <FileTree :nodes="store.fileTree" :depth="0" />
         </div>
-        <div class="empty-state" v-else-if="store.fileTree.length === 0">
+        <div class="file-tree-area" v-else-if="!store.projectRoot && openFileNodes.length > 0">
+          <div class="open-files-title">已打开的文件</div>
+          <FileTree :nodes="openFileNodes" :depth="0" />
+        </div>
+        <div class="empty-state" v-else-if="!store.projectRoot || store.fileTree.length === 0">
           <div class="empty-icon">
             <svg width="48" height="48" viewBox="0 0 16 16" fill="var(--text-muted)" opacity="0.4">
               <path d="M1.5 2.5h4.3l1.2 1.5h7.5v9.5H1.5V2.5z"/>
@@ -206,6 +210,18 @@ watch(searchInput, (val) => {
 
 const hasTabs = computed(() => store.tabs.length > 0)
 const hasFileTree = computed(() => store.fileTree.length > 0)
+
+// 未打开文件夹时，侧栏列出已打开的文件（可右键重命名/删除/定位）
+const openFileNodes = computed(() => {
+  return store.tabs
+    .filter(t => t.filePath)
+    .map(t => ({
+      name: t.fileName,
+      path: t.filePath,
+      type: 'file',
+      ext: (t.fileName.match(/\.[^.]+$/) || [''])[0].toLowerCase()
+    }))
+})
 
 const projectRootName = computed(() => {
   if (!store.projectRoot) return ''
@@ -696,6 +712,12 @@ function highlightMatch(lineContent, matches) {
   overflow-y: auto;
   overflow-x: hidden;
   padding-bottom: 8px;
+}
+.open-files-title {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 8px 14px 4px;
+  letter-spacing: 0.3px;
 }
 .empty-state {
   flex: 1;

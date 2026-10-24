@@ -29,7 +29,8 @@ export async function getSettingsStore() {
           recentFilesMax: 20
         },
         recentFiles: [],
-        recentFolders: []
+        recentFolders: [],
+        session: null
       }
     })
   }
@@ -50,7 +51,8 @@ export function registerSettingsHandlers(ipcMainInstance) {
       const settings = s.get('settings')
       const recentFiles = s.get('recentFiles')
       const recentFolders = s.get('recentFolders')
-      return { success: true, settings, recentFiles, recentFolders }
+      const session = s.get('session')
+      return { success: true, settings, recentFiles, recentFolders, session }
     } catch (err) {
       return { success: false, error: err.message }
     }
@@ -73,6 +75,9 @@ export function registerSettingsHandlers(ipcMainInstance) {
       }
       if (newSettings.recentFolders !== undefined) {
         s.set('recentFolders', newSettings.recentFolders)
+      }
+      if (newSettings.session !== undefined) {
+        s.set('session', newSettings.session)
       }
 
       return { success: true }

@@ -429,6 +429,17 @@ onUnmounted(() => {
 .editor-pane .cm-scroller::-webkit-scrollbar-thumb {
   min-width: var(--editor-scroll-min-width, 40px);
 }
+/* 行号栏配色：CM 基础主题的 &light 规则（#f5f5f5 / #e2f2ff）特异性高于主题里的单类选择器，
+   这里用三级选择器压过它，保证深色模式下行号栏不再发白 */
+.editor-pane .cm-editor .cm-gutters {
+  background-color: var(--bg-gutter);
+  color: var(--text-muted);
+  border-right-color: var(--border-color);
+}
+.editor-pane .cm-editor .cm-activeLineGutter {
+  background-color: var(--active-line-bg);
+  color: var(--text-secondary);
+}
 /* 自动换行 CSS 兜底：即使 lineWrapping extension 因 vue-codemirror 机制未注入成功，
    也通过 CSS 强制 .cm-content 换行，消除水平滚动条。
    与 EditorView.lineWrapping 的内部 CSS (.cm-lineWrapping) 规则一致，无冲突。 */

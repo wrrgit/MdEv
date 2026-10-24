@@ -36,6 +36,22 @@
                 <option value="preview">纯预览模式</option>
               </select>
             </div>
+            <div class="form-group">
+              <label>界面字体（菜单栏 / 标题栏）</label>
+              <select v-model="localSettings.uiFontFamily">
+                <option value="-apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif">系统默认（微软雅黑）</option>
+                <option value="'Segoe UI', 'Microsoft YaHei', sans-serif">Segoe UI</option>
+                <option value="'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif">微软雅黑 UI</option>
+                <option value="'PingFang SC', 'Microsoft YaHei', sans-serif">苹方</option>
+                <option value="'Noto Sans SC', 'Microsoft YaHei', sans-serif">Noto Sans SC</option>
+                <option value="'Source Han Sans SC', 'Microsoft YaHei', sans-serif">思源黑体</option>
+                <option value="'SimSun', serif">宋体</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>界面字号 ({{ localSettings.uiFontSize }}px)</label>
+              <input type="range" v-model.number="localSettings.uiFontSize" min="11" max="20" step="1" />
+            </div>
           </div>
 
           <!-- 编辑器 -->
