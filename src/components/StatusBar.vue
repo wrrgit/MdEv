@@ -4,7 +4,12 @@
       <span class="status-item" v-if="store.activeTab">
         行 {{ store.cursorLine }}, 列 {{ store.cursorCol }}
       </span>
-      <span class="status-item stat-item" v-if="docStats.chars > 0" title="字数统计（CJK 字符 + 西文单词）">
+      <span
+        class="status-item stat-item clickable"
+        v-if="docStats.chars > 0"
+        title="字数统计（点击查看详情）"
+        @click.stop="showStatsDetail = !showStatsDetail"
+      >
         {{ docStats.chars }} 字 · {{ docStats.lines }} 行 · 约 {{ docStats.readMin }} 分钟
       </span>
       <span class="status-item stat-item selected" v-if="selectionChars > 0">
@@ -32,6 +37,19 @@
       <span class="status-item">Markdown</span>
     </div>
   </div>
+  <!-- 字数统计详情弹层（对标 Obsidian 字数详情） -->
+  <teleport to="body">
+    <div v-if="showStatsDetail" class="stats-mask" @click="showStatsDetail = false">
+      <div class="stats-popover" :style="popoverStyle" @click.stop>
+        <div class="stats-row"><span>字数（CJK 字符 + 西文单词）</span><b>{{ detail.chars }}</b></div>
+        <div class="stats-row"><span>字符数（不含空格）</span><b>{{ detail.charsNoSpace }}</b></div>
+        <div class="stats-row"><span>字符数（含空格）</span><b>{{ detail.charsWithSpace }}</b></div>
+        <div class="stats-row"><span>段落数</span><b>{{ detail.paragraphs }}</b></div>
+        <div class="stats-row"><span>行数</span><b>{{ detail.lines }}</b></div>
+        <div class="stats-row"><span>预计阅读时长</span><b>约 {{ detail.readMin }} 分钟</b></div>
+      </div>
+    </div>
+  </teleport>
 </template>
 
 <script setup>
@@ -61,9 +79,11 @@ const docStats = ref({ chars: 0, lines: 0, readMin: 0 })
 let statsTimer = null
 
 // 全文统计做 300ms 防抖，避免大文档每次按键重算
+let lastRawContent = ''
 watch(() => store.content, (val) => {
   clearTimeout(statsTimer)
   statsTimer = setTimeout(() => {
+    lastRawContent = val || ''
     const chars = countChars(val)
     docStats.value = {
       chars,
@@ -76,6 +96,35 @@ watch(() => store.content, (val) => {
 onUnmounted(() => clearTimeout(statsTimer))
 
 const selectionChars = computed(() => countChars(store.selectionText))
+
+// ── 字数统计详情弹层 ──
+const showStatsDetail = ref(false)
+const popoverStyle = ref({})
+const detail = ref({ chars: 0, charsNoSpace: 0, charsWithSpace: 0, paragraphs: 0, lines: 0, readMin: 0 })
+
+// 弹层定位到统计项上方（左对齐）
+function positionPopover() {
+  const el = document.querySelector('.stat-item.clickable')
+  if (!el) return
+  const r = el.getBoundingClientRect()
+  popoverStyle.value = { left: r.left + 'px' }
+}
+
+watch(showStatsDetail, (v) => { if (v) positionPopover() })
+
+// 详情随全文统计一起防抖更新
+watch(docStats, () => {
+  const val = lastRawContent
+  const noSpace = (val.replace(/\s/g, '') || '').length
+  detail.value = {
+    chars: docStats.value.chars,
+    charsNoSpace: noSpace,
+    charsWithSpace: (val || '').length,
+    paragraphs: val ? val.split(/\n\s*\n/).filter(p => p.trim()).length : 0,
+    lines: docStats.value.lines,
+    readMin: docStats.value.readMin
+  }
+})
 </script>
 
 <style scoped>
@@ -100,6 +149,32 @@ const selectionChars = computed(() => countChars(store.selectionText))
 .status-item.saving { color: var(--accent-color); }
 .status-item.unsaved { color: #e78333; }
 .stat-item.selected { color: var(--accent-color); }
+.stat-item.clickable { cursor: pointer; }
+.stat-item.clickable:hover { color: var(--accent-color); }
+.stats-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 8000;
+}
+.stats-popover {
+  position: fixed;
+  bottom: 44px;
+  min-width: 280px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  padding: 12px 16px;
+  font-size: 13px;
+}
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 4px 0;
+  color: var(--text-secondary);
+}
+.stats-row b { color: var(--text-primary); font-weight: 600; }
 .status-item.file-notice {
   color: var(--accent-color);
   font-size: 13px;

@@ -32,16 +32,14 @@ import { ref, computed, shallowRef, watch, nextTick, onMounted, onUnmounted } fr
 import { Codemirror } from 'vue-codemirror'
 import { useEditorStore } from '@/stores/editorStore'
 import { lockScrollSync, isScrollSyncLocked } from '@/core/scrollMapper'
-import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightSpecialChars, drawSelection, rectangularSelection } from '@codemirror/view'
+import { EditorView, keymap } from '@codemirror/view'
 import { EditorState, Compartment, StateEffect, Prec } from '@codemirror/state'
 import { focusModeField, typewriterScroll } from '@/core/editor/focusTypewriter'
-import { defaultHighlightStyle, syntaxHighlighting, indentOnInput, bracketMatching, foldGutter, indentUnit } from '@codemirror/language'
-import { defaultKeymap, history, historyKeymap, indentWithTab, undo, redo } from '@codemirror/commands'
+import { indentWithTab, undo, redo } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
-import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
-import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { toggleWrap, insertLink, insertCodeBlock, setHeading, smartEnter, smartTab, smartShiftTab } from '@/core/markdown/editing'
+import { formatTableAtCursor } from '@/core/markdown/tableFormat'
 import ContextMenu from './ContextMenu.vue'
 import { useSelectionMenu } from '@/composables/useSelectionMenu'
 
@@ -68,9 +66,8 @@ const onEditorReady = (payload) => {
   window.editorUndo = () => { undo(v); v.focus() }
   window.editorRedo = () => { redo(v); v.focus() }
   updateCursorPos(v)
-  // vue-codemirror 创建 EditorView 时使用默认 basicSetup，不会应用我们传入的 extensions，
-  // 因此 wordWrapCompartment 必须在此通过 appendConfig 注册，并立即套用当前换行设置。
-  // 之前的方案（compartment.of 放 baseExtensions / :key 重建）均因此机制而失效。
+  // vue-codemirror 创建 EditorView 时会注入默认 basicSetup，并通过 appendConfig 应用我们传入的 :extensions，
+  // 因此 wordWrapCompartment 在此通过 appendConfig 注册（compartment 初始状态需动态设置），并立即套用当前换行设置。
   v.dispatch({
     effects: StateEffect.appendConfig.of([
       wordWrapCompartment.of(store.settings.wordWrap ? EditorView.lineWrapping : []),
@@ -85,6 +82,7 @@ const onEditorReady = (payload) => {
         { key: 'Alt-Shift-5', run: (view) => toggleWrap(view, '~~') },
         { key: 'Mod-k', run: insertLink },
         { key: 'Mod-Shift-K', run: insertCodeBlock },
+        { key: 'Shift-Alt-f', run: formatTableAtCursor },
         { key: 'Mod-1', run: (view) => setHeading(view, 1) },
         { key: 'Mod-2', run: (view) => setHeading(view, 2) },
         { key: 'Mod-3', run: (view) => setHeading(view, 3) },
@@ -253,8 +251,8 @@ function onDrop(e) {
   const basePath = getAssetBasePath()
 
   for (const file of files) {
-    // Electron: File 对象有 path 属性，包含完整文件路径
-    const filePath = file.path
+    // Electron 32+ 移除 File.path，统一走 preload 的 webUtils
+    const filePath = file.path || window.api?.getPathForFile?.(file) || ''
     if (!filePath) continue
     if (!IMAGE_EXT_RE.test(filePath)) continue
 
@@ -276,7 +274,7 @@ function onDrop(e) {
 async function copyAndInsertImageFile(view, filePath) {
   const basePath = getAssetBasePath()
   if (basePath) {
-    const result = await window.api?.copyImageFile(filePath, basePath)
+    const result = await window.api?.copyImageFile(filePath, basePath, store.settings.assetFolder)
     if (result?.success) {
       const alt = filePath.split(/[\\/]/).pop().replace(/\.[^.]+$/, '')
       insertImageMarkdown(view, alt, result.relativePath)
@@ -292,7 +290,7 @@ async function copyAndInsertImageFile(view, filePath) {
 async function saveAndInsertClipboardImage(view) {
   const basePath = getAssetBasePath()
   if (!basePath) return
-  const result = await window.api?.saveClipboardImage(basePath)
+  const result = await window.api?.saveClipboardImage(basePath, store.settings.assetFolder)
   if (result?.success) {
     insertImageMarkdown(view, 'image', result.relativePath)
   }
@@ -320,6 +318,22 @@ function handlePaste(event, view) {
     saveAndInsertClipboardImage(view)
     return true
   }
+  // 智能粘贴链接（Typora 行为）：有选中文本时粘贴裸 URL，自动包成 [选中](url)
+  const sel = view.state.selection.main
+  if (!sel.empty && types.includes('text/plain')) {
+    const pasted = (cd.getData('text/plain') || '').trim()
+    if (/^(https?:\/\/|www\.)\S+$/i.test(pasted)) {
+      event.preventDefault()
+      const selText = view.state.sliceDoc(sel.from, sel.to)
+      const url = /^https?:\/\//i.test(pasted) ? pasted : 'https://' + pasted
+      view.dispatch({
+        changes: { from: sel.from, to: sel.to, insert: `[${selText}](${url})` },
+        selection: { anchor: sel.from + selText.length + 4 + url.length }
+      })
+      view.focus()
+      return true
+    }
+  }
   return false
 }
 
@@ -333,26 +347,17 @@ const isDark = computed(() => {
   return document.documentElement.getAttribute('data-theme') === 'dark'
 })
 
+// 注意：vue-codemirror 默认已注入 basicSetup（行号/历史/默认键位/括号匹配/激活行/自动补全等），
+// 这里只补充 basicSetup 之外的扩展，避免重复注册（否则会出现双行号栏等异常）。
 const baseExtensions = [
-  lineNumbers(),
-  highlightActiveLineGutter(),
-  highlightSpecialChars(),
-  drawSelection(),
-  rectangularSelection(),
-  bracketMatching(),
-  closeBrackets(),
-  indentOnInput(),
-  foldGutter(),
-  highlightSelectionMatches(),
-  syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+  // Markdown 语法高亮（basicSetup 不含语言）
   markdown({ base: markdownLanguage }),
-  history(),
-  indentWithTab,
+  // 通用 Tab 缩进：必须包成 keymap.of([...]) 才是合法扩展；
+  // 裸放 keybinding 对象会被 CodeMirror 在解析扩展时抛 "Unrecognized extension value"，
+  // 进而连累整个 :extensions 数组失效（markdown 高亮/自定义键位/主题等全部不生效）。
+  keymap.of([indentWithTab]),
+  // 自定义键位：仅补充 basicSetup 没有的（Ctrl-m / Ctrl-Shift-m 公式块）
   keymap.of([
-    ...defaultKeymap,
-    ...historyKeymap,
-    ...searchKeymap,
-    ...closeBracketsKeymap,
     {
       key: 'Ctrl-m',
       run: (view) => {

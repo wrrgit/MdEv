@@ -94,12 +94,16 @@ function fuzzyMatch(q, text) {
 
 const filtered = computed(() => {
   const q = query.value.trim()
+  const hasProject = !!store.projectRoot
   if (!q) {
-    // 无查询：最近文件（项目内）优先，不足用项目文件补齐
+    // 无查询：最近文件（项目内）优先，不足用项目文件补齐；未打开项目时列出全部最近文件
     const inProject = new Set(allFiles.value.map(f => f.path))
-    const recent = store.recentFiles
-      .filter(f => inProject.has(f.path))
+    const recentSource = hasProject
+      ? store.recentFiles.filter(f => inProject.has(f.path))
+      : store.recentFiles
+    const recent = recentSource
       .map(f => ({ name: f.fileName, path: f.path, rel: relOf(f.path), recent: true }))
+    if (!hasProject) return recent.slice(0, 15)
     if (recent.length >= 10) return recent.slice(0, 10)
     const rest = allFiles.value
       .filter(f => !recent.some(r => r.path === f.path))
@@ -107,8 +111,12 @@ const filtered = computed(() => {
       .map(f => ({ ...f, rel: relOf(f.path) }))
     return [...recent, ...rest]
   }
+  // 有查询：项目文件优先；未打开项目时退化为最近文件模糊搜索
+  const pool = hasProject
+    ? allFiles.value
+    : store.recentFiles.map(f => ({ name: f.fileName, path: f.path }))
   const scored = []
-  for (const f of allFiles.value) {
+  for (const f of pool) {
     const rel = relOf(f.path)
     const mn = fuzzyMatch(q, f.name)
     const mr = fuzzyMatch(q, rel)

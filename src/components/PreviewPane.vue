@@ -221,8 +221,22 @@ async function onPreviewClick(e) {
   const href = link.getAttribute('href') || ''
   if (!href) return
 
-  // 外部链接和锚点：交给系统浏览器
-  if (/^(https?:|mailto:|#)/i.test(href)) return
+  // 页内锚点（[TOC] 目录跳转）：滚动到对应标题
+  if (href.startsWith('#')) {
+    e.preventDefault()
+    const target = previewContent.value?.querySelector(
+      '#' + CSS.escape(decodeURIComponent(href.slice(1)))
+    )
+    if (target) {
+      const sc = previewScroll.value
+      const top = target.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop
+      sc.scrollTo({ top: Math.max(0, top - 16), behavior: 'smooth' })
+    }
+    return
+  }
+
+  // 外部链接：交给系统浏览器
+  if (/^(https?:|mailto:)/i.test(href)) return
 
   // mdimg 协议的链接
   if (href.startsWith('mdimg://')) {
@@ -421,6 +435,32 @@ html[data-theme='dark'] .markdown-body mark.search-hit {
   border-color: #f44336;
 }
 .markdown-body .admonition-danger .admonition-title { color: #d32f2f; }
+
+/* ── [TOC] 目录块 ── */
+.markdown-body .md-toc {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  padding: 12px 20px;
+  margin: 0 0 20px;
+}
+.markdown-body .md-toc .md-toc-title {
+  font-weight: 700;
+  font-size: 15px;
+  margin: 0 0 8px;
+  color: var(--text-primary);
+}
+.markdown-body .md-toc ul {
+  padding-left: 18px;
+  margin: 2px 0;
+  list-style: disc;
+}
+.markdown-body .md-toc li { margin: 2px 0; }
+.markdown-body .md-toc a {
+  color: var(--accent-color);
+  text-decoration: none;
+}
+.markdown-body .md-toc a:hover { text-decoration: underline; }
 
 /* ── PlantUML ── */
 .markdown-body .plantuml-container { margin: 12px 0; text-align: center; }

@@ -64,6 +64,8 @@ export const useEditorStore = defineStore('editor', () => {
   const showExport = ref(false)
   const showAbout = ref(false)
   const showQuickOpen = ref(false)
+  const showCommandPalette = ref(false)
+  const showHistory = ref(false)
   const exportFormat = ref('pdf')
 
   // ── 设置 ──
@@ -89,6 +91,7 @@ export const useEditorStore = defineStore('editor', () => {
     autoSaveInterval: 3,
     defaultPanelFocus: 'filetree',
     recentFilesMax: 20,
+    assetFolder: 'assets',
     exportFileName: ''
   })
 
@@ -166,6 +169,7 @@ export const useEditorStore = defineStore('editor', () => {
       content,
       isDirty: false,
       hasDraft: false,
+      pinned: false,
       scrollPos: 0,
       cursorPos: { line: 0, col: 0 }
     }
@@ -176,7 +180,7 @@ export const useEditorStore = defineStore('editor', () => {
   }
 
   // 会话恢复：以原有 id 重建未命名标签（沿用同一草稿文件）
-  function restoreTab({ id, fileName, content, hasDraft = false }) {
+  function restoreTab({ id, fileName, content, hasDraft = false, pinned = false }) {
     if (!id || tabs.value.some(t => t.id === id)) return null
     tabs.value.push({
       id,
@@ -185,6 +189,7 @@ export const useEditorStore = defineStore('editor', () => {
       content,
       isDirty: false,
       hasDraft,
+      pinned,
       scrollPos: 0,
       cursorPos: { line: 0, col: 0 }
     })
@@ -196,6 +201,8 @@ export const useEditorStore = defineStore('editor', () => {
   function closeTab(tabId) {
     const idx = tabs.value.findIndex(t => t.id === tabId)
     if (idx === -1) return
+    // 固定标签不响应关闭（需先取消固定）
+    if (tabs.value[idx].pinned) return
 
     tabs.value.splice(idx, 1)
 
@@ -211,14 +218,39 @@ export const useEditorStore = defineStore('editor', () => {
   }
 
   function closeOtherTabs(tabId) {
-    tabs.value = tabs.value.filter(t => t.id === tabId)
-    activeTabId.value = tabId
+    // 保留目标标签 + 全部固定标签
+    tabs.value = tabs.value.filter(t => t.id === tabId || t.pinned)
+    if (!tabs.value.some(t => t.id === activeTabId.value)) activeTabId.value = tabId
   }
 
   function closeRightTabs(tabId) {
     const idx = tabs.value.findIndex(t => t.id === tabId)
     if (idx !== -1) {
-      tabs.value = tabs.value.slice(0, idx + 1)
+      // 右侧的固定标签保留（固定标签始终不被关闭）
+      const keep = tabs.value.filter((t, i) => i <= idx || t.pinned)
+      const removed = tabs.value.length - keep.length
+      tabs.value = keep
+      if (!tabs.value.some(t => t.id === activeTabId.value)) activeTabId.value = tabId
+      return removed
+    }
+    return 0
+  }
+
+  // ── 标签固定（pin）：固定标签排最左、防误关 ──
+  function togglePinTab(tabId) {
+    const idx = tabs.value.findIndex(t => t.id === tabId)
+    if (idx === -1) return
+    const tab = tabs.value[idx]
+    tab.pinned = !tab.pinned
+    const [moved] = tabs.value.splice(idx, 1)
+    if (tab.pinned) {
+      // 移到固定区块末尾（最后一个固定标签之后）
+      const lastPinned = tabs.value.reduce((acc, t, i) => t.pinned ? i + 1 : acc, 0)
+      tabs.value.splice(lastPinned, 0, moved)
+    } else {
+      // 移到未固定区块开头
+      const firstUnpinned = tabs.value.findIndex(t => !t.pinned)
+      tabs.value.splice(firstUnpinned === -1 ? tabs.value.length : firstUnpinned, 0, moved)
     }
   }
 
@@ -360,7 +392,7 @@ export const useEditorStore = defineStore('editor', () => {
     isPathExpanded, togglePathExpanded, collapseAllPaths, expandPath,
     applyExpandedToTree,
     searchQuery, searchResults, searchMode, searchHighlightTerm, searchRequest,
-    showWelcome, sidebarPanel, sidebarVisible, sidebarWidth, showSettings, showExport, showAbout, showQuickOpen, exportFormat,
+    showWelcome, sidebarPanel, sidebarVisible, sidebarWidth, showSettings, showExport, showAbout, showQuickOpen, showCommandPalette, showHistory, exportFormat,
     settings,
     recentFiles, recentFolders,
     content,
@@ -372,7 +404,7 @@ export const useEditorStore = defineStore('editor', () => {
     lastAppSaveTime, markAppSave,
     suppressAutoSave,
     addTab, restoreTab, closeTab, closeOtherTabs, closeRightTabs, setActiveTab,
-    updateTabOrder, markAsSaved,
+    togglePinTab, updateTabOrder, markAsSaved,
     addRecentFile, addRecentFolder, toggleRecentPin, reorderRecent,
     setProjectRoot,
     handlePathRenamed, handlePathDeleted,

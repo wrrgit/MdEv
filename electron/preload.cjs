@@ -1,6 +1,11 @@
-const { contextBridge, ipcRenderer } = require('electron')
+const { contextBridge, ipcRenderer, webUtils } = require('electron')
 
 contextBridge.exposeInMainWorld('api', {
+  // ── 拖拽文件路径（Electron 32+ 移除了 File.path，统一走 webUtils）──
+  getPathForFile: (file) => {
+    try { return webUtils.getPathForFile(file) } catch { return file?.path || '' }
+  },
+
   // ── 文件操作 ──
   readFile: (filePath) => ipcRenderer.invoke('file:read', filePath),
   writeFile: (filePath, content) => ipcRenderer.invoke('file:write', filePath, content),
@@ -18,8 +23,16 @@ contextBridge.exposeInMainWorld('api', {
   confirmUnsaved: (fileName) => ipcRenderer.invoke('dialog:confirmUnsaved', fileName),
 
   // ── 图片 ──
-  saveClipboardImage: (basePath) => ipcRenderer.invoke('image:saveClipboardImage', basePath),
-  copyImageFile: (srcPath, basePath) => ipcRenderer.invoke('image:copyImageFile', srcPath, basePath),
+  saveClipboardImage: (basePath, folder) => ipcRenderer.invoke('image:saveClipboardImage', basePath, folder),
+  copyImageFile: (srcPath, basePath, folder) => ipcRenderer.invoke('image:copyImageFile', srcPath, basePath, folder),
+
+  // ── 本地文件历史（快照）──
+  listHistory: (filePath) => ipcRenderer.invoke('history:list', filePath),
+  readHistory: (filePath, ts) => ipcRenderer.invoke('history:read', filePath, ts),
+  restoreHistory: (filePath, ts) => ipcRenderer.invoke('history:restore', filePath, ts),
+
+  // ── 剪贴板 ──
+  copyHtmlToClipboard: (html, text) => ipcRenderer.invoke('clipboard:writeHtml', html, text),
 
   // ── 文件监听 ──
   watchDirectory: (dirPath) => ipcRenderer.invoke('file:watch', dirPath),

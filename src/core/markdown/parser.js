@@ -7,6 +7,8 @@ import markdownItSup from 'markdown-it-sup'
 import markdownItMark from 'markdown-it-mark'
 import markdownItFootnote from 'markdown-it-footnote'
 import markdownItContainer from 'markdown-it-container'
+import markdownItDeflist from 'markdown-it-deflist'
+import * as emojiPkg from 'markdown-it-emoji'
 import DOMPurify from 'dompurify'
 import hljs from 'highlight.js/lib/core'
 import javascript from 'highlight.js/lib/languages/javascript'
@@ -129,6 +131,14 @@ function createMarkdownParser() {
   // 脚注
   md.use(markdownItFootnote)
 
+  // Emoji 短代码（:smile: → 😄）— v3 兼容 full/light/default 两种导出形态
+  const emojiPlugin = emojiPkg.full || emojiPkg.default?.full || emojiPkg.default
+  if (emojiPlugin) md.use(emojiPlugin)
+
+  // 定义列表（术语
+  // : 定义内容）
+  md.use(markdownItDeflist)
+
   // Admonition / Callout 容器
   md.use(markdownItContainer, 'note', {
     render(tokens, idx) {
@@ -170,7 +180,56 @@ function createMarkdownParser() {
   // 注入源码行号（fence / container 等规则此刻已注册）
   injectSourceLine(md)
 
+  // [TOC] 目录块：解析后把独立的 [TOC] 段落替换为标题目录
+  injectTocRule(md)
+
   return md
+}
+
+// ── [TOC] 目录块 ──
+// 文档中的独立 [TOC] 段落渲染为嵌套标题目录（复用 markdown-it-anchor 生成的 id 锚点）。
+// 用 html_block 承载以继承 data-source-line 注入（滚动同步），并保持行号映射不变。
+function injectTocRule(md) {
+  md.core.ruler.push('mdev_toc', (state) => {
+    const tocIdx = state.tokens.findIndex(
+      (t) => t.type === 'paragraph_open' &&
+        state.tokens[state.tokens.indexOf(t) + 1]?.type === 'inline' &&
+        /^\[toc\]$/i.test(state.tokens[state.tokens.indexOf(t) + 1].content.trim())
+    )
+    if (tocIdx === -1) return
+
+    // 收集全部标题（含锚点 id）
+    const headings = []
+    for (let i = 0; i < state.tokens.length; i++) {
+      const t = state.tokens[i]
+      if (t.type === 'heading_open') {
+        const inline = state.tokens[i + 1]
+        if (inline?.type === 'inline') {
+          headings.push({
+            level: Number(t.tag.slice(1)),
+            id: t.attrGet('id') || '',
+            text: inline.content
+          })
+        }
+      }
+    }
+
+    let html = '<nav class="md-toc"><p class="md-toc-title">目录</p>\n<ul>\n'
+    let prev = 0
+    for (const h of headings) {
+      while (prev < h.level) { html += '<ul>\n'; prev++ }
+      while (prev > h.level) { html += '</ul>\n'; prev-- }
+      html += `<li><a href="#${h.id}">${md.utils.escapeHtml(h.text)}</a></li>\n`
+    }
+    while (prev > 0) { html += '</ul>\n'; prev-- }
+    html += '</ul>\n</nav>\n'
+
+    const inlineTok = state.tokens[tocIdx + 1]
+    const tocToken = new state.Token('html_block', '', 0)
+    tocToken.content = html
+    tocToken.map = inlineTok.map || state.tokens[tocIdx].map
+    state.tokens.splice(tocIdx, 3, tocToken)
+  })
 }
 
 // ── 源码行号注入：为块级元素添加 data-source-line / data-source-line-end，用于滚动同步与 TOC 高亮 ──

@@ -2,6 +2,7 @@ import { readFile, writeFile, readdir, mkdir, rename, unlink, rm, stat, access, 
 import { join, extname } from 'path'
 import { existsSync } from 'fs'
 import { app } from 'electron'
+import { snapshotFile } from './historyHandlers.js'
 
 const watchedDirs = new Map()
 
@@ -18,6 +19,8 @@ export function registerFileHandlers(ipcMain, mainWindow) {
   ipcMain.handle('file:write', async (_, filePath, content) => {
     try {
       await writeFile(filePath, content, 'utf-8')
+      // 保存成功后自动快照（本地文件历史，静默失败不影响主流程）
+      snapshotFile(filePath, content)
       return { success: true }
     } catch (err) {
       return { success: false, error: err.message }

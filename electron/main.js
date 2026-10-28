@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, dialog, nativeTheme, screen, nativeImage, shell, protocol } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, dialog, nativeTheme, screen, nativeImage, shell, protocol, clipboard } from 'electron'
 import { join, dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
@@ -6,6 +6,7 @@ import { registerFileHandlers } from './ipc/fileHandlers.js'
 import { registerImageHandlers } from './ipc/imageHandlers.js'
 import { registerSearchHandlers } from './ipc/searchHandlers.js'
 import { registerExportHandlers } from './ipc/exportHandlers.js'
+import { registerHistoryHandlers } from './ipc/historyHandlers.js'
 import { registerSettingsHandlers, getSettingsStore } from './ipc/settingsHandlers.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -290,7 +291,18 @@ function registerIpcHandlers() {
   registerImageHandlers(ipcMain)
   registerSearchHandlers(ipcMain)
   registerExportHandlers(ipcMain, mainWindow)
+  registerHistoryHandlers(ipcMain)
   registerSettingsHandlers(ipcMain)
+
+  // ── 复制为 HTML：渲染后的 HTML + 纯文本兜底写入剪贴板 ──
+  ipcMain.handle('clipboard:writeHtml', async (_, html, text) => {
+    try {
+      clipboard.write({ html: html || '', text: text || '' })
+      return true
+    } catch {
+      return false
+    }
+  })
 
   ipcMain.handle('dialog:openFile', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {

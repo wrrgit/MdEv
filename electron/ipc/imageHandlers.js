@@ -12,36 +12,46 @@ function timestampName(ext) {
   return `image-${date}-${time}-${p(d.getMilliseconds(), 3)}.${ext}`
 }
 
+// 图片保存子目录：默认 assets，可在设置中自定义（如 images/imgs/notes）
+// 归一化为正斜杠相对路径，拒绝 .. 防止越权写盘
+function sanitizeFolder(folder) {
+  const f = (folder || 'assets').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
+  if (!f || f.split('/').some(p => p === '..' || p === '.' || /[<>:"|?*]/.test(p))) return 'assets'
+  return f
+}
+
 export function registerImageHandlers(ipcMain) {
-  // 保存系统剪贴板图片（截图/复制的纯图片）到 basePath/assets/
-  ipcMain.handle('image:saveClipboardImage', async (_, basePath) => {
+  // 保存系统剪贴板图片（截图/复制的纯图片）到 basePath/<folder>/
+  ipcMain.handle('image:saveClipboardImage', async (_, basePath, folder) => {
     try {
       if (!basePath) return { success: false, error: 'no-base-path' }
       const image = clipboard.readImage()
       if (image.isEmpty()) return { success: false, error: 'clipboard-empty' }
-      const dir = join(basePath, 'assets')
+      const sub = sanitizeFolder(folder)
+      const dir = join(basePath, sub)
       await mkdir(dir, { recursive: true })
       const name = timestampName('png')
       const abs = join(dir, name)
       await writeFile(abs, image.toPNG())
-      return { success: true, path: abs, relativePath: `assets/${name}` }
+      return { success: true, path: abs, relativePath: `${sub}/${name}` }
     } catch (err) {
       return { success: false, error: err.message }
     }
   })
 
-  // 复制磁盘上的图片文件到 basePath/assets/（保留原扩展名）
-  ipcMain.handle('image:copyImageFile', async (_, srcPath, basePath) => {
+  // 复制磁盘上的图片文件到 basePath/<folder>/（保留原扩展名）
+  ipcMain.handle('image:copyImageFile', async (_, srcPath, basePath, folder) => {
     try {
       if (!srcPath || !basePath) return { success: false, error: 'no-path' }
       if (!existsSync(srcPath)) return { success: false, error: 'file-not-found' }
-      const dir = join(basePath, 'assets')
+      const sub = sanitizeFolder(folder)
+      const dir = join(basePath, sub)
       await mkdir(dir, { recursive: true })
       const ext = (extname(srcPath) || '.png').replace('.', '').toLowerCase()
       const name = timestampName(ext)
       const abs = join(dir, name)
       await copyFile(srcPath, abs)
-      return { success: true, path: abs, relativePath: `assets/${name}` }
+      return { success: true, path: abs, relativePath: `${sub}/${name}` }
     } catch (err) {
       return { success: false, error: err.message }
     }

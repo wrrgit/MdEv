@@ -156,6 +156,15 @@
               <input type="range" v-model.number="localSettings.autoSaveInterval" min="1" max="60" step="1" />
             </div>
             <div class="form-group">
+              <label>图片保存目录（相对当前文件）</label>
+              <input
+                type="text"
+                v-model="localSettings.assetFolder"
+                placeholder="assets"
+              />
+              <p class="form-hint">粘贴或拖入图片时保存到此子目录，Markdown 中使用相对路径引用</p>
+            </div>
+            <div class="form-group">
               <label>默认面板焦点</label>
               <select v-model="localSettings.defaultPanelFocus">
                 <option value="filetree">文件树</option>
@@ -289,6 +298,12 @@ function saveAndClose() {
   overflow-y: auto;
 }
 .settings-form { max-width: 400px; }
+.form-hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
 .form-group { margin-bottom: 20px; }
 .form-group label {
   display: block;

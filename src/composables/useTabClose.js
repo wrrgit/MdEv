@@ -8,6 +8,8 @@ export function useTabClose() {
   async function requestCloseTab(tabId) {
     const tab = store.tabs.find(t => t.id === tabId)
     if (!tab) return
+    // 固定标签不响应关闭（防止误触，需先右键取消固定）
+    if (tab.pinned) return
 
     if (!tab.filePath && tab.hasDraft) {
       const choice = await window.api?.confirmUnsaved(tab.fileName)

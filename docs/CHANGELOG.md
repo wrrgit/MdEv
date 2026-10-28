@@ -2,6 +2,47 @@
 
 ---
 
+## v0.7.0 · 2026-10-25（第二轮）
+
+### 对标业界产品体验增强批次（二）—— 数据安全与标签管理
+
+**新功能**：
+- **本地文件历史**（对标 Obsidian File Recovery / VS Code Timeline）：
+  - 每次保存自动快照到 `userData/file-history/<hash>/<timestamp>.md`，保留最近 30 份，同一文件 1 分钟内不重复快照（新建 `electron/ipc/historyHandlers.js`，挂接 `file:write`）
+  - 「文件历史…」对话框（命令面板入口）：快照列表 + 内容预览 + 一键恢复（新建 `src/components/FileHistoryDialog.vue`）
+- **标签固定（pin）**（对标 VS Code）：TabBar 右键菜单（关闭 / 固定 / 关闭其他 / 关闭右侧 / 复制路径），固定标签排最左、防误关、中键点击不关闭、会话恢复保留 pin 状态
+- **图片保存目录可配置**（Typora 式资产化）：设置 → 文件 →「图片保存目录」，粘贴/拖入图片存入指定子目录（默认 assets），拒绝 `..` 越权路径
+- **复制为 HTML**：命令面板执行，渲染后的 HTML 写入剪贴板（主进程 `clipboard:writeHtml`，纯文本 Markdown 兜底）
+- **Ctrl+P 无项目兜底**：未打开文件夹时也可搜索/打开最近文件（Obsidian 快速切换器行为）
+- 新增 `docs/BENCHMARK.md`：Typora / Obsidian / MarkText / VS Code / Joplin / Zettlr 完整对标分析
+
+**验证**：清理旧产物 → `npm run build:electron` → `electron-builder --win dir` → 启动 + CDP 渲染层冒烟（App 挂载 / 新设置项 / 无白屏）全部通过。
+**环境备注**：WorkBuddy 终端启动 exe 必须先清 `ELECTRON_RUN_AS_NODE`/`NODE_OPTIONS`；本沙箱内 GPU/Chromium 沙箱进程会崩溃（0xC0000005），加 `--no-sandbox --disable-gpu` 可运行，正常桌面环境无需此参数。
+
+---
+
+## 2026-10-25
+
+### 对标业界产品（Typora / Obsidian / VS Code / MarkText）体验增强批次
+
+**新功能**：
+- **命令面板**（VS Code 风格）：`Ctrl+Shift+P` 呼出，聚合文件/编辑/格式/插入/视图/主题/导出/应用共 35+ 条命令，支持模糊搜索与键盘导航（新建 `src/components/CommandPalette.vue`，命令注册在 `App.vue`）
+- **Markdown 渲染增强**（`src/core/markdown/parser.js`）：
+  - Emoji 短代码：`:smile:` → 😄（markdown-it-emoji v3）
+  - 定义列表（markdown-it-deflist）
+  - `[TOC]` 目录块：渲染为嵌套标题目录，复用 markdown-it-anchor 锚点，点击平滑滚动到对应章节（预览区新增页内锚点跳转处理与 `.md-toc` 样式）
+- **智能粘贴链接**（Typora 行为）：选中文本状态下粘贴裸 URL，自动包成 `[选中](url)`（`EditorPane.vue` paste handler）
+- **表格源码格式化**：`Shift+Alt+F`（与 VS Code 一致）或命令面板触发，按显示宽度（CJK 记 2）对齐管道符，保留列对齐方式（新建 `src/core/markdown/tableFormat.js`）
+- **拖拽文件到窗口打开**：.md 等文本文件直接拖入窗口即打开为标签页（`App.vue` drop 处理）
+- **状态栏字数统计详情**：点击状态栏字数弹出详情（字数/字符数含空格与不含空格/段落数/行数/阅读时长），对标 Obsidian
+- **preload**：新增 `webUtils.getPathForFile` 桥接，兜住 Electron 32+ 移除 `File.path` 后的图片拖拽与文件拖入
+
+**依赖**：新增 `markdown-it-emoji@3`、`markdown-it-deflist@3`
+
+**验证**：清理旧产物 → `npm run build:electron` → `electron-builder --win dir` → 启动 `D:\mdev-release\win-unpacked\MdEv.exe` 正常运行
+
+---
+
 ## 2026-07-19
 
 ### 1. 修复 PDF/图片导出内容为截图而非 Markdown 渲染内容

@@ -1,5 +1,6 @@
 <template>
-  <div class="app-container" ref="appContainer">
+  <div class="app-container" ref="appContainer"
+    @dragover.prevent="onDragOverApp" @drop.prevent="onDropApp">
     <TitleBar />
     <MenuBar />
     <TabBar />
@@ -30,6 +31,12 @@
     <SettingsPanel />
     <ExportDialog />
     <QuickOpen />
+    <CommandPalette
+      :visible="store.showCommandPalette"
+      :commands="paletteCommands"
+      @close="store.showCommandPalette = false"
+    />
+    <FileHistoryDialog />
   </div>
 </template>
 
@@ -50,6 +57,16 @@ import StatusBar from '@/components/StatusBar.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import ExportDialog from '@/components/ExportDialog.vue'
 import QuickOpen from '@/components/QuickOpen.vue'
+import CommandPalette from '@/components/CommandPalette.vue'
+import FileHistoryDialog from '@/components/FileHistoryDialog.vue'
+import { toggleWrap, setHeading, insertLink, insertCodeBlock } from '@/core/markdown/editing'
+import { formatTableAtCursor } from '@/core/markdown/tableFormat'
+
+// 可作为文本在编辑器打开的扩展名（预览区/拖拽共用口径）
+const TEXT_EXTS = ['md', 'markdown', 'mdown', 'mdx', 'json', 'js', 'ts', 'jsx', 'tsx',
+  'css', 'scss', 'less', 'html', 'htm', 'xml', 'yaml', 'yml', 'toml', 'ini', 'txt', 'csv',
+  'py', 'java', 'c', 'cpp', 'h', 'go', 'rs', 'rb', 'php', 'sh', 'bash', 'sql', 'lua', 'kt', 'dart']
+const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'avif']
 
 const store = useEditorStore()
 const previewRef = ref(null)
@@ -211,13 +228,155 @@ watch(() => store.projectRoot, (val) => {
   if (val) watchProjectFolder(val)
 })
 
-// ── 全局快捷键：Ctrl+P 快速打开 ──
+// ── 全局快捷键：Ctrl+P 快速打开 / Ctrl+Shift+P 命令面板 ──
 function onGlobalKeydown(e) {
-  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'p') {
+  const mod = e.ctrlKey || e.metaKey
+  if (mod && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'p') {
     e.preventDefault()
-    if (store.projectRoot) store.showQuickOpen = !store.showQuickOpen
+    store.showCommandPalette = !store.showCommandPalette
+    return
+  }
+  if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'p') {
+    e.preventDefault()
+    store.showQuickOpen = !store.showQuickOpen
   }
 }
+
+// ── 拖拽文件到窗口打开（.md 等文本文件；图片由编辑区拖拽处理）──
+function onDragOverApp() {}
+
+async function onDropApp(e) {
+  const files = Array.from(e.dataTransfer?.files || [])
+  if (files.length === 0) return
+  for (const file of files) {
+    const filePath = file.path || window.api?.getPathForFile?.(file) || ''
+    if (!filePath) continue
+    const ext = filePath.toLowerCase().match(/\.([^.]+)$/)?.[1] || ''
+    if (!TEXT_EXTS.includes(ext) || IMAGE_EXTS.includes(ext)) continue
+    try {
+      const result = await window.api.readFile(filePath)
+      if (result?.success) {
+        store.addTab(filePath, result.content, filePath.split(/[\\/]/).pop())
+        store.addRecentFile(filePath)
+      }
+    } catch {}
+  }
+}
+
+// ── 编辑器命令辅助（命令面板用）──
+function withEditor(fn) {
+  const v = window.editorRef
+  if (!v) return
+  fn(v)
+  v.focus()
+}
+
+function insertFormula(view, block) {
+  const sel = view.state.selection.main
+  const text = view.state.sliceDoc(sel.from, sel.to)
+  if (block) {
+    if (text) view.dispatch({ changes: { from: sel.from, to: sel.to, insert: '$$\n' + text + '\n$$' } })
+    else view.dispatch({ changes: { from: sel.from, insert: '$$\n\n$$' }, selection: { anchor: sel.from + 4 } })
+  } else {
+    if (text) view.dispatch({
+      changes: [{ from: sel.from, insert: '$' }, { from: sel.to, insert: '$' }],
+      selection: { anchor: sel.from + 1, head: sel.to + 1 }
+    })
+    else view.dispatch({ changes: { from: sel.from, insert: '$$' }, selection: { anchor: sel.from + 1 } })
+  }
+}
+
+async function openFileByDialog() {
+  const filePath = await window.api.openFileDialog()
+  if (!filePath) return
+  const ext = filePath.toLowerCase().match(/\.([^.]+)$/)?.[1] || ''
+  if (IMAGE_EXTS.includes(ext)) {
+    await window.api.openPath(filePath)
+    return
+  }
+  const result = await window.api.readFile(filePath)
+  if (result?.success) {
+    store.addTab(filePath, result.content, filePath.split(/[\\/]/).pop())
+    store.addRecentFile(filePath)
+  }
+}
+
+async function openFolderByDialog() {
+  const folderPath = await window.api.openFolderDialog()
+  if (!folderPath) return
+  const result = await window.api.readDirectory(folderPath)
+  if (result?.success) {
+    store.collapseAllPaths()
+    store.fileTree = result.tree
+    store.setProjectRoot(folderPath)
+    store.expandPath(folderPath)
+    // watchProjectFolder 定义在下方，onMounted 后才绑定；这里直接调用
+    watchProjectFolder(folderPath)
+  }
+}
+
+// ── 命令面板命令注册 ──
+const paletteCommands = computed(() => [
+  // 文件
+  { id: 'file.new', section: '文件', title: '新建文件', hint: 'Ctrl+N', keywords: 'new file', run: () => store.addTab(null, '', '未命名.md') },
+  { id: 'file.open', section: '文件', title: '打开文件…', hint: 'Ctrl+O', keywords: 'open file', run: openFileByDialog },
+  { id: 'file.openFolder', section: '文件', title: '打开文件夹…', hint: 'Ctrl+Shift+O', keywords: 'open folder directory', run: openFolderByDialog },
+  { id: 'file.save', section: '文件', title: '保存', hint: 'Ctrl+S', keywords: 'save', run: () => saveNow() },
+  { id: 'file.saveAs', section: '文件', title: '另存为…', hint: 'Ctrl+Shift+S', keywords: 'save as', run: () => saveAs() },
+  { id: 'file.close', section: '文件', title: '关闭当前标签页', keywords: 'close tab', run: () => store.activeTabId && store.closeTab(store.activeTabId) },
+  { id: 'file.quickOpen', section: '文件', title: '快速打开文件…', hint: 'Ctrl+P', keywords: 'quick open goto', run: () => { store.showQuickOpen = true } },
+  // 编辑
+  { id: 'edit.undo', section: '编辑', title: '撤销', hint: 'Ctrl+Z', keywords: 'undo', run: () => window.editorUndo?.() },
+  { id: 'edit.redo', section: '编辑', title: '重做', hint: 'Ctrl+Y', keywords: 'redo', run: () => window.editorRedo?.() },
+  { id: 'edit.find', section: '编辑', title: '文件内查找', hint: 'Ctrl+F', keywords: 'find search', run: () => { store.sidebarVisible = true; store.sidebarPanel = 'search' } },
+  { id: 'edit.findGlobal', section: '编辑', title: '跨文件搜索', hint: 'Ctrl+Shift+F', keywords: 'global search', run: () => { store.sidebarVisible = true; store.sidebarPanel = 'search' } },
+  { id: 'edit.table', section: '编辑', title: '格式化当前表格', hint: 'Shift+Alt+F', keywords: 'format table align', run: () => withEditor(formatTableAtCursor) },
+  { id: 'edit.copyHtml', section: '编辑', title: '复制为 HTML', keywords: 'copy html clipboard', run: async () => {
+    if (!store.activeTab) return
+    const { parseMarkdown } = await import('@/core/markdown/parser')
+    const html = await parseMarkdown(store.content, {
+      filePath: store.activeTab?.filePath,
+      projectRoot: store.projectRoot
+    })
+    await window.api?.copyHtmlToClipboard(html, store.content)
+    store.notifyFileChange('已复制渲染后的 HTML')
+  } },
+  { id: 'file.history', section: '文件', title: '文件历史（本地快照）…', keywords: 'history snapshot recovery timeline', run: () => { if (store.activeTab?.filePath) store.showHistory = true } },
+  // 格式
+  { id: 'fmt.bold', section: '格式', title: '加粗', hint: 'Ctrl+B', keywords: 'bold', run: () => withEditor(v => toggleWrap(v, '**')) },
+  { id: 'fmt.italic', section: '格式', title: '斜体', hint: 'Ctrl+I', keywords: 'italic', run: () => withEditor(v => toggleWrap(v, '*')) },
+  { id: 'fmt.strike', section: '格式', title: '删除线', hint: 'Alt+Shift+5', keywords: 'strikethrough', run: () => withEditor(v => toggleWrap(v, '~~')) },
+  ...[1, 2, 3, 4, 5, 6].map(n => ({
+    id: `fmt.h${n}`, section: '格式', title: `标题 ${n}`, hint: `Ctrl+${n}`,
+    keywords: 'heading title', run: () => withEditor(v => setHeading(v, n))
+  })),
+  { id: 'fmt.p', section: '格式', title: '正文段落', hint: 'Ctrl+0', keywords: 'paragraph plain', run: () => withEditor(v => setHeading(v, 0)) },
+  // 插入
+  { id: 'ins.link', section: '插入', title: '插入链接', hint: 'Ctrl+K', keywords: 'link url', run: () => withEditor(insertLink) },
+  { id: 'ins.code', section: '插入', title: '插入代码块', hint: 'Ctrl+Shift+K', keywords: 'code block', run: () => withEditor(insertCodeBlock) },
+  { id: 'ins.formula', section: '插入', title: '插入行内公式', hint: 'Ctrl+M', keywords: 'formula math inline katex', run: () => withEditor(v => insertFormula(v, false)) },
+  { id: 'ins.formulaBlock', section: '插入', title: '插入块级公式', hint: 'Ctrl+Shift+M', keywords: 'formula math block katex', run: () => withEditor(v => insertFormula(v, true)) },
+  // 视图
+  { id: 'view.dual', section: '视图', title: '视图：双栏（编辑 + 预览）', keywords: 'dual view', run: () => { store.settings.viewMode = 'dual' } },
+  { id: 'view.edit', section: '视图', title: '视图：仅编辑器', keywords: 'edit view', run: () => { store.settings.viewMode = 'edit' } },
+  { id: 'view.preview', section: '视图', title: '视图：仅预览', keywords: 'preview view', run: () => { store.settings.viewMode = 'preview' } },
+  { id: 'view.sidebar', section: '视图', title: '切换侧边栏', hint: 'Ctrl+Shift+B', keywords: 'toggle sidebar', run: () => { store.sidebarVisible = !store.sidebarVisible } },
+  { id: 'view.focus', section: '视图', title: '专注模式：开 / 关', keywords: 'focus mode zen', run: () => { store.settings.focusMode = !store.settings.focusMode } },
+  { id: 'view.typewriter', section: '视图', title: '打字机模式：开 / 关', keywords: 'typewriter mode', run: () => { store.settings.typewriterMode = !store.settings.typewriterMode } },
+  { id: 'view.wordwrap', section: '视图', title: '自动换行：开 / 关', keywords: 'word wrap', run: () => { store.settings.wordWrap = !store.settings.wordWrap } },
+  { id: 'view.scrollSync', section: '视图', title: '滚动同步：开 / 关', keywords: 'scroll sync', run: () => { store.settings.scrollSync = !store.settings.scrollSync } },
+  // 主题
+  { id: 'theme.light', section: '主题', title: '主题：浅色', keywords: 'light theme', run: () => { store.settings.theme = 'light' } },
+  { id: 'theme.dark', section: '主题', title: '主题：深色', keywords: 'dark theme', run: () => { store.settings.theme = 'dark' } },
+  { id: 'theme.system', section: '主题', title: '主题：跟随系统', keywords: 'system theme auto', run: () => { store.settings.theme = 'system' } },
+  // 导出
+  { id: 'export.pdf', section: '导出', title: '导出为 PDF…', keywords: 'export pdf', run: () => { store.exportFormat = 'pdf'; store.showExport = true } },
+  { id: 'export.html', section: '导出', title: '导出为 HTML…', keywords: 'export html', run: () => { store.exportFormat = 'html'; store.showExport = true } },
+  { id: 'export.png', section: '导出', title: '导出为 PNG 图片…', keywords: 'export image png', run: () => { store.exportFormat = 'png'; store.showExport = true } },
+  // 应用
+  { id: 'app.settings', section: '应用', title: '打开设置', hint: 'Ctrl+,', keywords: 'settings preferences', run: () => { store.showSettings = true } },
+  { id: 'app.about', section: '应用', title: '关于 MdEv', keywords: 'about version', run: () => { store.showAbout = true } }
+])
 
 // ── Lifecycle ──
 onMounted(async () => {

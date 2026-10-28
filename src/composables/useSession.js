@@ -18,7 +18,8 @@ export function useSession() {
           filePath: t.filePath,
           fileName: t.fileName,
           draftId: t.filePath ? null : t.id,
-          hasDraft: !!t.hasDraft
+          hasDraft: !!t.hasDraft,
+          pinned: !!t.pinned
         })),
         activeIndex: Math.max(0, store.tabs.findIndex(t => t.id === store.activeTabId)),
         projectRoot: store.projectRoot
@@ -32,7 +33,7 @@ export function useSession() {
       if (timer) clearTimeout(timer)
       timer = setTimeout(snapshot, PERSIST_DELAY)
     }
-    watch(() => store.tabs.map(t => `${t.id}|${t.filePath}|${t.fileName}|${t.hasDraft}`), schedule)
+    watch(() => store.tabs.map(t => `${t.id}|${t.filePath}|${t.fileName}|${t.hasDraft}|${t.pinned}`), schedule)
     watch(() => store.activeTabId, schedule)
     watch(() => store.projectRoot, schedule)
     // 关闭窗口前立即落盘，避免防抖未触发
@@ -79,10 +80,13 @@ export function useSession() {
         if (!it) { missing++; return }
         if (it.filePath) {
           ids.push(store.addTab(it.filePath, it.content, it.fileName))
+          // 恢复固定状态（addTab 按 id 去重后返回已有/新建标签 id）
+          const tab = store.tabs.find(t => t.id === ids[ids.length - 1])
+          if (tab) tab.pinned = !!it.pinned
           // 会话恢复的文件同样刷新最近打开记录（更新 lastOpened 并置顶）
           store.addRecentFile(it.filePath)
         } else {
-          ids.push(store.restoreTab({ id: it.draftId, fileName: it.fileName, content: it.content, hasDraft: !!it.hasDraft }))
+          ids.push(store.restoreTab({ id: it.draftId, fileName: it.fileName, content: it.content, hasDraft: !!it.hasDraft, pinned: !!it.pinned }))
         }
       })
 
