@@ -10,7 +10,7 @@ Markdown Editor for Windows — split-pane layout with editor on the left and li
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D4.svg)](https://github.com/wrrgit/MdEv)
 [![Electron](https://img.shields.io/badge/Electron-33-47848F.svg)](https://www.electronjs.org/)
 [![Vue](https://img.shields.io/badge/Vue-3-42b883.svg)](https://vuejs.org/)
-[![Release](https://img.shields.io/badge/Release-v0.6.0-orange.svg)](https://github.com/wrrgit/MdEv/releases)
+[![Release](https://img.shields.io/badge/Release-v0.7.0-orange.svg)](https://github.com/wrrgit/MdEv/releases)
 
 English | [简体中文](./README.md)
 
@@ -45,6 +45,7 @@ MdEv is a Windows desktop Markdown editor built with Electron + Vue 3 + CodeMirr
 - ✅ **Auto Save** — Debounced auto-save with real-time status indicator
 - ✅ **Word Wrap** — Toggle soft wrap mode, single Enter inserts line break (Typora-style)
 - ✅ **Image Drag & Drop** — Drag image files directly into the editor to insert Markdown syntax
+- ✅ **Copy as HTML** — Run from the command palette to copy rendered HTML to clipboard (with plain-text Markdown fallback)
 
 ### Preview
 - ✅ **Live Preview** — markdown-it rendering + KaTeX math formulas + highlight.js code highlighting
@@ -69,10 +70,13 @@ MdEv is a Windows desktop Markdown editor built with Electron + Vue 3 + CodeMirr
 - ✅ **Recent Files** — Quick access to recent files / folders via sidebar and file menu submenu
 - ✅ **Session Restore** — Automatically reopens last document and folder on startup
 - ✅ **File Type Support** — Markdown, JSON, images (images open in system viewer)
+- ✅ **Local File History** — Auto-snapshots on every save (keep latest 30); open "File History…" from the command palette to preview and restore (like Obsidian File Recovery / VS Code Timeline)
+- ✅ **Tab Pinning** — Right-click a tab to pin / close others / close to the right; pinned tabs stay leftmost, resist accidental close, and survive session restore
 
 ### Navigation & Search
 - ✅ **Outline Navigation** — Auto-extracted heading tree, click to jump to sections
 - ✅ **Full-Text Search** — In-file search (`Ctrl+F`) + cross-file search (`Ctrl+Shift+F`)
+- ✅ **Command Palette (`Ctrl+P`)** — Fuzzy-search project files, open file history, keyboard navigation; works even without an open folder (recent files fallback)
 - 📋 TOC auto-highlight current section on scroll — Planned
 - 📋 Search term highlighting in preview — Planned
 
@@ -80,6 +84,7 @@ MdEv is a Windows desktop Markdown editor built with Electron + Vue 3 + CodeMirr
 - ✅ **Theme Toggle** — Light / Dark / Follow system, one-click via sidebar sun/moon icon
 - ✅ **Font Settings** — Independent editor / preview font selection, sidebar A+/A− quick font size adjustment
 - ✅ **Settings Panel** — 4 sections: Appearance / Editor / Preview / Files, gear icon entry
+- ✅ **Configurable Image Folder** — Settings → Files → Image folder; pasted/dropped images go to a chosen subfolder (default `assets`), with path-traversal protection
 
 ### Export
 - ✅ **Export PDF** — Formulas and styles fully preserved
@@ -96,9 +101,9 @@ MdEv is a Windows desktop Markdown editor built with Electron + Vue 3 + CodeMirr
 
 ### Option 1: Direct Download (Recommended)
 
-Go to the [Releases page](https://github.com/wrrgit/MdEv/releases) and download the latest `MdEv-Setup-0.6.0.exe`, then double-click to install.
+Go to the [Releases page](https://github.com/wrrgit/MdEv/releases) and download the latest portable exe `MdEv 0.7.0.exe`, then double-click to run — no installation required.
 
-> A portable version `MdEv-Portable-0.6.0.exe` is also available — no installation required, just run it.
+> To build an installer (NSIS), run `npm run make` locally, or build from source (see Option 2).
 
 ### Option 2: Build from Source
 
@@ -143,6 +148,7 @@ Build artifacts are placed in `D:\mdev-release\` (the output directory is config
 | `Ctrl + F` | Find in file |
 | `Ctrl + Shift + F` | Search across files |
 | `Ctrl + G` | Go to line |
+| `Ctrl + P` | Command palette (quick switch / file history) |
 | `Ctrl + B` | Toggle sidebar |
 | `Ctrl + ,` | Open settings |
 | `Ctrl + Z` | Undo |
@@ -212,7 +218,8 @@ MdEv/
 | v0.4.0 | Export expansion (PNG export, step-by-step progress) | ✅ Released |
 | v0.5.0 | Writing experience (focus/typewriter mode, clipboard paste, external change detection, file tree context menu, drafts & session restore) | ✅ Released |
 | v0.6.0 | System integration & interaction (`.md` file association, selection context menu, scroll sync fix, recents persistence) | ✅ Released |
-| v0.7.0 | Packaging & release enhancements (auto-update, test coverage, user manual) | 📋 Planned |
+| v0.7.0 | Experience enhancement batch 2 (local file history, tab pinning, command palette, configurable image folder, copy as HTML, Ctrl+P fallback) | ✅ Released |
+| v0.8.0 | Packaging & release enhancements (auto-update, test coverage, user manual) | 📋 Planned |
 | v1.0.0 | Official release | 📋 Planned |
 
 See [ROADMAP.md](./docs/ROADMAP.md) for details.

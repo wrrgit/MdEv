@@ -10,7 +10,7 @@ Markdown Editor for Windows — 左编辑右预览双栏布局，支持工程目
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D4.svg)](https://github.com/wrrgit/MdEv)
 [![Electron](https://img.shields.io/badge/Electron-33-47848F.svg)](https://www.electronjs.org/)
 [![Vue](https://img.shields.io/badge/Vue-3-42b883.svg)](https://vuejs.org/)
-[![Release](https://img.shields.io/badge/Release-v0.6.0-orange.svg)](https://github.com/wrrgit/MdEv/releases)
+[![Release](https://img.shields.io/badge/Release-v0.7.0-orange.svg)](https://github.com/wrrgit/MdEv/releases)
 
 [English](./README.en.md) | 简体中文
 
@@ -52,6 +52,7 @@ MdEv 是一款基于 Electron + Vue 3 + CodeMirror 6 构建的 Windows 桌面端
 - ✅ **剪贴板图片粘贴** — 截图/复制的图片直接 `Ctrl+V` 粘贴，自动存入 assets 目录
 - ✅ **专注模式** — 淡化当前段落以外的内容，心无旁骛
 - ✅ **打字机模式** — 光标行始终保持垂直居中
+- ✅ **复制为 HTML** — 命令面板执行，将渲染后的 HTML 写入剪贴板（纯文本 Markdown 兜底）
 
 ### 预览
 
@@ -82,13 +83,15 @@ MdEv 是一款基于 Electron + Vue 3 + CodeMirror 6 构建的 Windows 桌面端
 - ✅ **多标签页** — 拖拽排序、未保存标记、右键菜单关闭
 - ✅ **最近打开** — 最近文件 / 文件夹快速访问，文件菜单 + 侧边栏双重入口
 - ✅ **文件类型支持** — Markdown、JSON、图片（图片用系统查看器打开）
+- ✅ **本地文件历史** — 每次保存自动快照（保留最近 30 份），命令面板打开「文件历史…」可预览并一键恢复（对标 Obsidian File Recovery / VS Code Timeline）
+- ✅ **标签固定（pin）** — 标签栏右键固定 / 关闭其他 / 关闭右侧，固定标签排最左、防误关、中键不关闭，会话恢复保留 pin 状态
 
 ### 导航与搜索
 
 - ✅ **目录导航** — 自动提取标题树，点击跳转章节，滚动时自动高亮当前章节
 - ✅ **全文搜索** — 文件内搜索 (`Ctrl+F`) + 跨文件搜索 (`Ctrl+Shift+F`)
 - ✅ **搜索词预览区高亮** — 搜索结果在预览区高亮并联动定位
-- ✅ **快速打开** — `Ctrl+P` 模糊搜索项目文件，键盘导航秒开
+- ✅ **命令面板（`Ctrl+P`）** — 模糊搜索项目文件、打开文件历史，键盘导航秒开；未打开文件夹时也可搜索 / 打开最近文件（对标 Obsidian 快速切换器）
 - ✅ **滚动同步** — 基于源码行映射的编辑/预览双向滚动联动
 
 ### 个性化
@@ -97,6 +100,7 @@ MdEv 是一款基于 Electron + Vue 3 + CodeMirror 6 构建的 Windows 桌面端
 - ✅ **字体设置** — 编辑器 / 预览区独立字体与字号，侧边栏 A+/A− 快捷同步调节
 - ✅ **界面字体** — 菜单栏与标题栏字体、字号可在设置中单独调整
 - ✅ **设置面板** — 外观 / 编辑器 / 预览 / 文件，4 大分区，齿轮图标入口
+- ✅ **图片保存目录可配置** — 设置 → 文件 → 图片保存目录，粘贴 / 拖入图片存入指定子目录（默认 assets），拒绝越权路径
 
 ### 导出
 
@@ -117,9 +121,9 @@ MdEv 是一款基于 Electron + Vue 3 + CodeMirror 6 构建的 Windows 桌面端
 
 ### 方式一：直接下载（推荐普通用户）
 
-前往 [Releases 页面](https://github.com/wrrgit/MdEv/releases) 下载最新版本的 `MdEv-Setup-0.6.0.exe`，双击即可安装运行。
+前往 [Releases 页面](https://github.com/wrrgit/MdEv/releases) 下载最新版本的便携 exe `MdEv 0.7.0.exe`，双击即用，无需安装。
 
-> 也可下载便携版 `MdEv-Portable-0.6.0.exe`，无需安装，双击即用。
+> 如需安装包（NSIS），可本地执行 `npm run make` 自行构建；或从源码构建（见方式二）。
 
 ### 方式二：从源码构建
 
@@ -161,7 +165,7 @@ npm run package
 | `Ctrl + Shift + O` | 打开文件夹  |
 | `Ctrl + S`         | 保存     |
 | `Ctrl + Shift + S` | 另存为    |
-| `Ctrl + P`         | 快速打开（项目文件模糊搜索） |
+| `Ctrl + P`         | 命令面板（快速切换 / 打开文件历史） |
 | `Ctrl + F`         | 文件内查找  |
 | `Ctrl + Shift + F` | 跨文件搜索  |
 | `Ctrl + G`         | 跳转到行   |
@@ -203,7 +207,8 @@ npm run package
 MdEv/
 ├── electron/               # Electron 主进程
 │   ├── main.js             # 窗口管理、IPC、自定义协议
-│   └── preload.cjs         # 安全桥接（Context Isolation）
+│   ├── preload.cjs         # 安全桥接（Context Isolation）
+│   └── ipc/                # IPC 处理器（file / image / history / export 等）
 ├── src/                    # 渲染进程（Vue 3）
 │   ├── components/         # UI 组件
 │   │   ├── TitleBar.vue          # 自定义标题栏（logo + 软件名）
@@ -213,6 +218,8 @@ MdEv/
 │   │   ├── FileTree.vue          # 文件树
 │   │   ├── EditorPane.vue        # 编辑器面板
 │   │   ├── PreviewPane.vue       # 预览面板
+│   │   ├── CommandPalette.vue    # 命令面板（Ctrl+P 快速切换 / 文件历史）
+│   │   ├── FileHistoryDialog.vue # 文件历史对话框
 │   │   ├── PanelSidebar.vue      # 侧栏（文件树/最近/目录/搜索 + 主题/字体/设置）
 │   │   ├── SettingsPanel.vue     # 设置面板
 │   │   ├── ExportDialog.vue      # 导出对话框
@@ -240,7 +247,8 @@ MdEv/
 | v0.4.0 | 导出扩展（PNG 导出、分步进度）                     | ✅ 已发布  |
 | v0.5.0 | 写作体验（专注/打字机、剪贴板粘贴、外部变更检测、文件树右键、草稿与会话恢复）    | ✅ 已发布  |
 | v0.6.0 | 系统集成与交互增强（.md 文件关联、选中文本右键菜单、滚动同步修复、最近打开持久化） | ✅ 已发布  |
-| v0.7.0 | 打包与发布增强（自动更新、测试覆盖、用户手册）         | 📋 计划中 |
+| v0.7.0 | 体验增强批次二（本地文件历史、标签固定、命令面板、图片目录可配置、复制为 HTML、Ctrl+P 兜底） | ✅ 已发布  |
+| v0.8.0 | 打包与发布增强（自动更新、测试覆盖、用户手册）         | 📋 计划中 |
 | v1.0.0 | 正式发布                                   | 📋 计划中 |
 
 详见 [ROADMAP.md](./docs/ROADMAP.md)。
