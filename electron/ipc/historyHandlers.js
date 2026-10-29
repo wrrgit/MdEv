@@ -20,6 +20,9 @@ const lastSnapshotAt = new Map() // filePath -> timestamp
 export async function snapshotFile(filePath, content) {
   try {
     if (!filePath || typeof content !== 'string') return
+    // 超大文件（>2MB）跳过快照：避免每次保存都复制一份多 MB 副本，
+    // 本地历史对超大文件意义有限且占用大量磁盘。
+    if (content.length > 2_000_000) return
     const prev = lastSnapshotAt.get(filePath) || 0
     if (Date.now() - prev < MIN_INTERVAL_MS) return
 

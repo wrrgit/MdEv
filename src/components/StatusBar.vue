@@ -12,6 +12,9 @@
       >
         {{ docStats.chars }} 字 · {{ docStats.lines }} 行 · 约 {{ docStats.readMin }} 分钟
       </span>
+      <span class="status-item" v-if="fileSizeText">{{ fileSizeText }}</span>
+      <span class="status-item large-badge" v-if="fileTier === 'large'">大文件</span>
+      <span class="status-item huge-badge" v-if="fileTier === 'huge'">超大文件</span>
       <span class="status-item stat-item selected" v-if="selectionChars > 0">
         已选 {{ selectionChars }} 字
       </span>
@@ -55,6 +58,7 @@
 <script setup>
 import { computed, ref, watch, onUnmounted } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
+import { classifyContent, byteSize, formatBytes } from '@/core/perf'
 
 const store = useEditorStore()
 
@@ -76,6 +80,8 @@ function countChars(text) {
 }
 
 const docStats = ref({ chars: 0, lines: 0, readMin: 0 })
+const fileSizeText = ref('')
+const fileTier = ref('normal')
 let statsTimer = null
 
 // 全文统计做 300ms 防抖，避免大文档每次按键重算
@@ -90,6 +96,8 @@ watch(() => store.content, (val) => {
       lines: val ? val.split('\n').length : 0,
       readMin: chars > 0 ? Math.max(1, Math.ceil(chars / 400)) : 0
     }
+    fileSizeText.value = formatBytes(byteSize(val))
+    fileTier.value = classifyContent(val).tier
   }, 300)
 }, { immediate: true })
 
@@ -148,6 +156,8 @@ watch(docStats, () => {
 .status-item.saved { color: var(--text-muted); }
 .status-item.saving { color: var(--accent-color); }
 .status-item.unsaved { color: #e78333; }
+.status-item.large-badge { color: #b7791f; font-weight: 600; }
+.status-item.huge-badge { color: #c0392b; font-weight: 600; }
 .stat-item.selected { color: var(--accent-color); }
 .stat-item.clickable { cursor: pointer; }
 .stat-item.clickable:hover { color: var(--accent-color); }
