@@ -46,6 +46,21 @@ export const useEditorStore = defineStore('editor', () => {
     expandedPaths.value = new Set(s)
   }
 
+  // 递归展开文件树中所有目录（用于「展开全部」）
+  function expandAllPaths() {
+    const s = new Set(expandedPaths.value)
+    const walk = (nodes) => {
+      for (const n of nodes) {
+        if (n.type === 'directory') {
+          s.add(n.path)
+          if (n.children && n.children.length) walk(n.children)
+        }
+      }
+    }
+    walk(fileTree.value)
+    expandedPaths.value = s
+  }
+
   // ── 搜索 ──
   const searchQuery = ref('')
   const searchResults = ref([])
@@ -390,7 +405,7 @@ export const useEditorStore = defineStore('editor', () => {
   return {
     tabs, activeTabId, activeTab,
     projectRoot, fileTree, expandedPaths,
-    isPathExpanded, togglePathExpanded, collapseAllPaths, expandPath,
+    isPathExpanded, togglePathExpanded, collapseAllPaths, expandPath, expandAllPaths,
     applyExpandedToTree,
     searchQuery, searchResults, searchMode, searchHighlightTerm, searchRequest,
     showWelcome, sidebarPanel, sidebarVisible, sidebarWidth, showSettings, showExport, showAbout, showQuickOpen, showCommandPalette, showHistory, exportFormat,

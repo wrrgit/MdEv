@@ -23,7 +23,7 @@
         <span
           v-if="node.type === 'directory'"
           class="tree-arrow"
-          :class="{ collapsed: !isExpanded(node) }"
+          :class="{ expanded: isExpanded(node) }"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
             <path d="M5.7 13.7a1 1 0 0 1 0-1.4L9.58 8 5.7 3.7a1 1 0 0 1 1.4-1.4l4.59 4.58a1 1 0 0 1 0 1.41L7.12 12.7a1 1 0 0 1-1.41 0z"/>
@@ -41,18 +41,20 @@
           </button>
         </div>
       </div>
-      <div v-if="node.type === 'directory' && isExpanded(node) && node.children && node.children.length > 0" class="tree-children">
-        <FileTree :nodes="node.children" :depth="depth + 1" />
-      </div>
-      <div v-if="node.type === 'directory' && isExpanded(node) && node.children && node.children.length === 0" class="tree-empty">
-        <div class="tree-node-content tree-empty-content">
-          <div class="tree-indent">
-            <span v-for="i in depth + 1" :key="i" class="indent-guide"></span>
+      <transition name="tree-fade">
+        <div v-if="node.type === 'directory' && isExpanded(node)" class="tree-children">
+          <FileTree v-if="node.children && node.children.length > 0" :nodes="node.children" :depth="depth + 1" />
+          <div v-else class="tree-empty">
+            <div class="tree-node-content tree-empty-content">
+              <div class="tree-indent">
+                <span v-for="i in depth + 1" :key="i" class="indent-guide"></span>
+              </div>
+              <span class="tree-arrow-placeholder"></span>
+              <span class="empty-label">空文件夹</span>
+            </div>
           </div>
-          <span class="tree-arrow-placeholder"></span>
-          <span class="empty-label">空文件夹</span>
         </div>
-      </div>
+      </transition>
     </div>
     <ContextMenu
       :visible="menuVisible"
@@ -359,8 +361,8 @@ async function onDelete(node) {
   border-radius: 3px;
 }
 
-.tree-arrow.collapsed {
-  transform: rotate(-90deg);
+.tree-arrow.expanded {
+  transform: rotate(90deg);
 }
 
 .tree-arrow-placeholder {
@@ -427,6 +429,16 @@ async function onDelete(node) {
 
 .tree-children {
   overflow: hidden;
+}
+
+.tree-fade-enter-active,
+.tree-fade-leave-active {
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.tree-fade-enter-from,
+.tree-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 .tree-empty {

@@ -45,13 +45,19 @@
       <div v-if="store.sidebarPanel === 'filetree'" class="sidebar-panel">
         <div v-if="store.projectRoot" class="panel-header">
           <div class="project-root-info" @click="toggleRootExpand" :title="store.projectRoot">
-            <span class="root-arrow" :class="{ collapsed: !store.isPathExpanded(store.projectRoot) }">
+            <span class="root-arrow" :class="{ expanded: store.isPathExpanded(store.projectRoot) }">
               <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M5.7 13.7a1 1 0 0 1 0-1.4L9.58 8 5.7 3.7a1 1 0 0 1 1.4-1.4l4.59 4.58a1 1 0 0 1 0 1.41L7.12 12.7a1 1 0 0 1-1.41 0z"/></svg>
             </span>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="opacity:0.6;flex-shrink:0"><path d="M1.5 2.5h4.3l1.2 1.5h7.5v9.5H1.5V2.5z"/><path d="M1.5 5h13l-1.5 8.5H3L1.5 5z"/></svg>
             <span class="project-root-name">{{ projectRootName }}</span>
           </div>
           <div class="panel-header-actions">
+            <button class="panel-action-btn" @click="expandAll" title="展开全部">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a1 1 0 00-.7.3L3.3 5.3a1 1 0 101.4 1.4L8 3.82l3.3 3.3a1 1 0 001.4-1.42L8.7 1.3A1 1 0 008 1zM8 6a1 1 0 00-.7.3L3.3 10.3a1 1 0 101.4 1.4L8 8.82l3.3 3.3a1 1 0 001.4-1.42L8.7 6.3A1 1 0 008 6z"/></svg>
+            </button>
+            <button class="panel-action-btn" @click="collapseAll" title="折叠全部">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 14a1 1 0 00.7-.3L12.7 9.7a1 1 0 10-1.4-1.4L8 11.18 5.7 8.3A1 1 0 004.3 9.7l3.3 3.3A1 1 0 008 14zM8 9a1 1 0 00.7-.3L12.7 4.7a1 1 0 10-1.4-1.4L8 6.18 5.7 3.3A1 1 0 104.3 4.7l3.3 3.3A1 1 0 008 9z"/></svg>
+            </button>
             <button class="panel-action-btn" @click="onNewFile" title="新建文件">
               <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M12 7H9V4a1 1 0 00-2 0v3H4a1 1 0 000 2h3v3a1 1 0 002 0V9h3a1 1 0 000-2z"/></svg>
             </button>
@@ -499,6 +505,16 @@ function toggleRootExpand() {
   }
 }
 
+// 展开全部 / 折叠全部（折叠后保留项目根可见）
+function expandAll() {
+  store.expandAllPaths()
+}
+
+function collapseAll() {
+  store.collapseAllPaths()
+  if (store.projectRoot) store.expandPath(store.projectRoot)
+}
+
 async function doSearch() {
   if (!searchInput.value.trim()) return
 
@@ -727,8 +743,8 @@ function highlightMatch(lineContent, matches) {
   color: var(--text-muted);
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.15s;
 }
-.root-arrow.collapsed {
-  transform: rotate(-90deg);
+.root-arrow.expanded {
+  transform: rotate(90deg);
 }
 .project-root-name {
   font-size: 13px;
