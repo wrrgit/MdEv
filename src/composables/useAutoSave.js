@@ -14,6 +14,8 @@ export function useAutoSave() {
         if (!store.activeTab) return
         // 外部重载触发的内容变化不需要自动保存（内容已与磁盘一致）
         if (store.suppressAutoSave) return
+        // 用户关闭自动保存时跳过
+        if (!store.settings.autoSaveEnabled) return
 
         saveStatus.value = 'unsaved'
 
@@ -21,6 +23,8 @@ export function useAutoSave() {
 
         const interval = (store.settings.autoSaveInterval || 3) * 1000
         saveTimer = setTimeout(async () => {
+          // 关闭自动保存后，挂起的定时器也不应再写入
+          if (!store.settings.autoSaveEnabled) return
           // 自动保存：未命名文档写临时草稿，不弹"另存为"对话框
           await doSave({ silent: true })
         }, interval)

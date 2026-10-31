@@ -152,6 +152,13 @@
           <!-- 文件 -->
           <div v-show="activeSection === 'file'" class="settings-form">
             <div class="form-group">
+              <label class="toggle-label">
+                <input type="checkbox" v-model="localSettings.autoSaveEnabled" />
+                <span>自动保存（内容变更后自动写入）</span>
+              </label>
+              <p class="form-hint">关闭后需手动按 Ctrl+S 保存，已挂起的自动保存会被取消</p>
+            </div>
+            <div class="form-group">
               <label>自动保存间隔 ({{ localSettings.autoSaveInterval }} 秒)</label>
               <input type="range" v-model.number="localSettings.autoSaveInterval" min="1" max="60" step="1" />
             </div>
@@ -195,8 +202,10 @@
 <script setup>
 import { ref, reactive, watch } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
+import { useToast } from '@/composables/useToast'
 
 const store = useEditorStore()
+const toast = useToast()
 const activeSection = ref('appearance')
 
 const sections = [
@@ -225,6 +234,8 @@ function saveAndClose() {
   Object.assign(store.settings, localSettings)
   window.api?.setSettings({ settings: { ...store.settings } })
   close()
+  const on = store.settings.autoSaveEnabled
+  toast.show(on ? '已开启自动保存' : '已关闭自动保存', { type: on ? 'success' : 'warning' })
 }
 </script>
 

@@ -24,6 +24,7 @@ export async function getSettingsStore() {
           matchBrackets: true,
           codeFolding: true,
           scrollSync: true,
+          autoSaveEnabled: true,
           autoSaveInterval: 3,
           defaultPanelFocus: 'filetree',
           recentFilesMax: 20

@@ -88,6 +88,7 @@ export const useEditorStore = defineStore('editor', () => {
     codeFolding: true,
     scrollSync: true,
     viewMode: 'dual',
+    autoSaveEnabled: true,
     autoSaveInterval: 3,
     defaultPanelFocus: 'filetree',
     recentFilesMax: 20,
