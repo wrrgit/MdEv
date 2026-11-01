@@ -2,8 +2,9 @@
 node_modules/
 
 # Build output
-dist/
-dist-electron/
+# 注意：dist/ 与 dist-electron/ 不能被忽略，否则 electron-builder 默认遵循 .gitignore
+# 会将其排除出 app.asar，导致打包后的 exe 不含渲染/主进程产物（运行时空白或旧逻辑）。
+# 这两项由 build 流程重新生成，提交时请用显式文件名，勿 git add -A。
 release/
 
 # Build artifacts (root-level copies of compiled output)
