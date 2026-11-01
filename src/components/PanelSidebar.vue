@@ -145,17 +145,35 @@
       <div v-if="store.sidebarPanel === 'toc'" class="sidebar-panel">
         <div class="panel-header">
           <span>目录</span>
+          <div class="panel-header-actions" v-if="tocItems.length > 0">
+            <button class="panel-action-btn" @click="tocExpandAll" title="展开全部">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a1 1 0 00-.7.3L3.3 5.3a1 1 0 101.4 1.4L8 3.82l3.3 3.3a1 1 0 001.4-1.42L8.7 1.3A1 1 0 008 1zM8 6a1 1 0 00-.7.3L3.3 10.3a1 1 0 101.4 1.4L8 8.82l3.3 3.3a1 1 0 001.4-1.42L8.7 6.3A1 1 0 008 6z"/></svg>
+            </button>
+            <button class="panel-action-btn" @click="tocCollapseAll" title="折叠全部">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 14a1 1 0 00.7-.3L12.7 9.7a1 1 0 10-1.4-1.4L8 11.18 5.7 8.3A1 1 0 004.3 9.7l3.3 3.3A1 1 0 008 14zM8 9a1 1 0 00.7-.3L12.7 4.7a1 1 0 10-1.4-1.4L8 6.18 5.7 3.3A1 1 0 104.3 4.7l3.3 3.3A1 1 0 008 9z"/></svg>
+            </button>
+          </div>
         </div>
-        <div class="toc-content" v-if="tocItems.length > 0">
+        <div class="toc-content" v-if="tocTreeItems.length > 0">
           <div
-            v-for="item in tocItems"
+            v-for="item in tocTreeItems"
             :key="item.line"
             class="toc-item"
             :class="{ active: item.line === activeTocLine }"
             :style="{ paddingLeft: (item.level - 1) * 16 + 8 + 'px' }"
             @click="onTocItemClick(item)"
           >
-            {{ item.text }}
+            <span
+              v-if="item.hasChildren"
+              class="toc-arrow"
+              :class="{ expanded: !item.collapsed }"
+              :title="item.collapsed ? '展开' : '折叠'"
+              @click.stop="toggleTocCollapsed(item.line)"
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M5.7 13.7a1 1 0 0 1 0-1.4L9.58 8 5.7 3.7a1 1 0 0 1 1.4-1.4l4.59 4.58a1 1 0 0 1 0 1.41L7.12 12.7a1 1 0 0 1-1.41 0z"/></svg>
+            </span>
+            <span v-else class="toc-arrow toc-arrow-leaf"></span>
+            <span class="toc-text">{{ item.text }}</span>
           </div>
         </div>
         <div class="empty-state" v-else>
@@ -379,6 +397,50 @@ const tocItems = computed(() => {
 })
 
 const activeTocLine = computed(() => store.currentTocLine || 0)
+
+// ── 目录树折叠/展开 ──
+// 折叠状态：按标题行号记录（行号在文档内唯一）
+const collapsedTocLines = ref(new Set())
+
+// 在扁平标题列表上标注 hasChildren/collapsed，并过滤掉被折叠祖先隐藏的项
+const tocTreeItems = computed(() => {
+  const items = tocItems.value
+  const result = []
+  const stack = [] // 祖先栈：{ level, line }
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i]
+    // 弹出同级或更深（非祖先）的项，栈内只保留 level 更小的真正祖先
+    while (stack.length && stack[stack.length - 1].level >= it.level) stack.pop()
+    const hidden = stack.some(a => collapsedTocLines.value.has(a.line))
+    const next = items[i + 1]
+    const hasChildren = !!(next && next.level > it.level)
+    const collapsed = collapsedTocLines.value.has(it.line)
+    if (!hidden) result.push({ ...it, hasChildren, collapsed })
+    stack.push({ level: it.level, line: it.line })
+  }
+  return result
+})
+
+function toggleTocCollapsed(line) {
+  const s = new Set(collapsedTocLines.value)
+  if (s.has(line)) s.delete(line)
+  else s.add(line)
+  collapsedTocLines.value = s
+}
+
+function tocExpandAll() {
+  collapsedTocLines.value = new Set()
+}
+
+function tocCollapseAll() {
+  const items = tocItems.value
+  const s = new Set()
+  for (let i = 0; i < items.length; i++) {
+    const next = items[i + 1]
+    if (next && next.level > items[i].level) s.add(items[i].line)
+  }
+  collapsedTocLines.value = s
+}
 
 // 去除 markdown 行内标记，得到纯文本（TOC 的 item.text 含原始标记，需与渲染后 textContent 对齐）
 function stripMarkdown(s) {
@@ -826,16 +888,39 @@ function highlightMatch(lineContent, matches) {
 }
 .toc-content { flex: 1; overflow-y: auto; padding: 4px 0; }
 .toc-item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   padding: 4px 8px;
   font-size: 12px;
   color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .toc-item:hover { color: var(--text-primary); background: var(--hover-bg); }
 .toc-item.active { color: var(--accent-color); }
+.toc-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  border-radius: 3px;
+  transition: transform 0.15s, color 0.15s, background 0.15s;
+}
+.toc-arrow:hover { color: var(--text-primary); background: var(--hover-bg); }
+.toc-arrow.expanded { transform: rotate(90deg); }
+.toc-arrow-leaf { cursor: default; }
+.toc-arrow-leaf:hover { background: transparent; }
+.toc-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .search-box {
   display: flex;
   gap: 4px;
