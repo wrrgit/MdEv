@@ -203,7 +203,7 @@ watch(docStats, () => {
 .stats-row b { color: var(--text-primary); font-weight: 600; }
 .status-item.file-notice {
   color: var(--accent-color);
-  font-size: calc(var(--statusbar-font-size, 16px) - 3px);
+  font-size: var(--statusbar-font-size, 16px);
   animation: notice-fade 0.3s ease-in;
 }
 @keyframes notice-fade {
@@ -231,7 +231,7 @@ watch(docStats, () => {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: calc(var(--statusbar-font-size, 16px) - 3px);
+  font-size: var(--statusbar-font-size, 16px);
   font-family: inherit;
   padding: 2px 6px;
   border-radius: 4px;
@@ -253,7 +253,7 @@ watch(docStats, () => {
   background: transparent;
   border: 1px solid transparent;
   cursor: pointer;
-  font-size: calc(var(--statusbar-font-size, 16px) - 3px);
+  font-size: var(--statusbar-font-size, 16px);
   font-family: inherit;
   padding: 2px 8px;
   border-radius: 4px;
