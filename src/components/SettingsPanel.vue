@@ -52,6 +52,24 @@
               <label>界面字号 ({{ localSettings.uiFontSize }}px)</label>
               <input type="range" v-model.number="localSettings.uiFontSize" min="11" max="20" step="1" />
             </div>
+            <div class="form-group">
+              <label>状态栏字体（最下方）</label>
+              <select v-model="localSettings.statusBarFontFamily">
+                <option value="-apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif">系统默认（微软雅黑）</option>
+                <option value="'Segoe UI', 'Microsoft YaHei', sans-serif">Segoe UI</option>
+                <option value="'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif">微软雅黑 UI</option>
+                <option value="'PingFang SC', 'Microsoft YaHei', sans-serif">苹方</option>
+                <option value="'Noto Sans SC', 'Microsoft YaHei', sans-serif">Noto Sans SC</option>
+                <option value="'Source Han Sans SC', 'Microsoft YaHei', sans-serif">思源黑体</option>
+                <option value="'SimSun', serif">宋体</option>
+                <option value="'Consolas', monospace">Consolas（等宽）</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>状态栏字号 ({{ localSettings.statusBarFontSize }}px)</label>
+              <input type="range" v-model.number="localSettings.statusBarFontSize" min="10" max="20" step="1" />
+              <p class="form-hint">控制窗口最下方状态栏的文字字体与大小</p>
+            </div>
           </div>
 
           <!-- 编辑器 -->

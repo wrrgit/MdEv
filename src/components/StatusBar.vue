@@ -159,7 +159,8 @@ watch(docStats, () => {
   padding: 4px 12px;
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-color);
-  font-size: 16px;
+  font-family: var(--statusbar-font-family, -apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif);
+  font-size: var(--statusbar-font-size, 16px);
   color: var(--text-muted);
   flex-shrink: 0;
 }
@@ -202,7 +203,7 @@ watch(docStats, () => {
 .stats-row b { color: var(--text-primary); font-weight: 600; }
 .status-item.file-notice {
   color: var(--accent-color);
-  font-size: 13px;
+  font-size: calc(var(--statusbar-font-size, 16px) - 3px);
   animation: notice-fade 0.3s ease-in;
 }
 @keyframes notice-fade {
@@ -214,9 +215,9 @@ watch(docStats, () => {
   border: none;
   color: var(--accent-color);
   cursor: pointer;
-  font-size: 16px;
+  font-size: var(--statusbar-font-size, 16px);
   font-weight: 500;
-  font-family: -apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  font-family: inherit;
   padding: 2px 6px;
   letter-spacing: 0.5px;
   transition: color 0.12s;
@@ -230,8 +231,8 @@ watch(docStats, () => {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 13px;
-  font-family: -apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  font-size: calc(var(--statusbar-font-size, 16px) - 3px);
+  font-family: inherit;
   padding: 2px 6px;
   border-radius: 4px;
   white-space: nowrap;
@@ -252,8 +253,8 @@ watch(docStats, () => {
   background: transparent;
   border: 1px solid transparent;
   cursor: pointer;
-  font-size: 13px;
-  font-family: -apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  font-size: calc(var(--statusbar-font-size, 16px) - 3px);
+  font-family: inherit;
   padding: 2px 8px;
   border-radius: 4px;
   white-space: nowrap;

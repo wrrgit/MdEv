@@ -104,6 +104,19 @@ watch(
   { immediate: true }
 )
 
+// ── 状态栏（最下方）字体与字号 ──
+function applyStatusBarFont() {
+  const root = document.documentElement
+  root.style.setProperty('--statusbar-font-family', store.settings.statusBarFontFamily || 'inherit')
+  root.style.setProperty('--statusbar-font-size', `${store.settings.statusBarFontSize || 16}px`)
+}
+
+watch(
+  [() => store.settings.statusBarFontFamily, () => store.settings.statusBarFontSize],
+  applyStatusBarFont,
+  { immediate: true }
+)
+
 // ── 编辑/预览字体与行高：main.css 里只是默认值，需按设置覆盖 CSS 变量才生效 ──
 function applyContentFonts() {
   const s = store.settings

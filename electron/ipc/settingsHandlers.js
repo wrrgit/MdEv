@@ -12,6 +12,8 @@ export async function getSettingsStore() {
       defaults: {
         settings: {
           theme: 'system',
+          statusBarFontFamily: "-apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif",
+          statusBarFontSize: 16,
           editorFontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace",
           editorFontSize: 15,
           previewFontFamily: "-apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif",

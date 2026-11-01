@@ -88,6 +88,8 @@ export const useEditorStore = defineStore('editor', () => {
     theme: 'system',
     uiFontFamily: "-apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif",
     uiFontSize: 13,
+    statusBarFontFamily: "-apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif",
+    statusBarFontSize: 16,
     editorFontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace",
     editorFontSize: 15,
     previewFontFamily: "-apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif",
