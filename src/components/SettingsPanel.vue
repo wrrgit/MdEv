@@ -202,10 +202,8 @@
 <script setup>
 import { ref, reactive, watch } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
-import { useToast } from '@/composables/useToast'
 
 const store = useEditorStore()
-const toast = useToast()
 const activeSection = ref('appearance')
 
 const sections = [
@@ -234,8 +232,6 @@ function saveAndClose() {
   Object.assign(store.settings, localSettings)
   window.api?.setSettings({ settings: { ...store.settings } })
   close()
-  const on = store.settings.autoSaveEnabled
-  toast.show(on ? '已开启自动保存' : '已关闭自动保存', { type: on ? 'success' : 'warning' })
 }
 </script>
 

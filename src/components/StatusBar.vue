@@ -36,6 +36,14 @@
       <button class="view-mode-btn" @click="cycleViewMode" :title="viewModeLabel">
         {{ viewModeLabel }}
       </button>
+      <button
+        class="save-mode-btn"
+        :class="store.settings.autoSaveEnabled ? 'auto-on' : 'auto-off'"
+        @click="toggleAutoSave"
+        :title="store.settings.autoSaveEnabled ? '自动保存：内容变更后自动写入磁盘（点击切换为手动保存）' : '手动保存：需按 Ctrl+S 保存（点击切换为自动保存）'"
+      >
+        <span class="save-mode-dot"></span>{{ store.settings.autoSaveEnabled ? '自动保存' : '手动保存' }}
+      </button>
       <span class="status-item">UTF-8</span>
       <span class="status-item">Markdown</span>
     </div>
@@ -69,6 +77,13 @@ function cycleViewMode() {
   const order = ['dual', 'edit', 'preview']
   const idx = order.indexOf(store.settings.viewMode)
   store.settings.viewMode = order[(idx + 1) % order.length]
+}
+
+// ── 右下角常驻「自动保存 / 手动保存」切换 ──
+function toggleAutoSave() {
+  store.settings.autoSaveEnabled = !store.settings.autoSaveEnabled
+  // 立即持久化到 electron-store，下次启动保持
+  window.api?.setSettings({ settings: { ...store.settings } })
 }
 
 // ── 字数统计（对标 Typora：CJK 字符 + 西文单词）──
@@ -229,5 +244,39 @@ watch(docStats, () => {
 .mode-toggle-btn.active {
   color: var(--accent-color);
   font-weight: 600;
+}
+.save-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: -apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  transition: color 0.12s, background-color 0.12s, border-color 0.12s;
+}
+.save-mode-btn:hover {
+  background: var(--hover-bg);
+  border-color: var(--border-color);
+}
+.save-mode-btn.auto-on {
+  color: var(--accent-color);
+  font-weight: 600;
+}
+.save-mode-btn.auto-off {
+  color: #e78333;
+  font-weight: 600;
+}
+.save-mode-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+  flex-shrink: 0;
 }
 </style>

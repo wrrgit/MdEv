@@ -37,7 +37,6 @@
       @close="store.showCommandPalette = false"
     />
     <FileHistoryDialog />
-    <ToastHost />
   </div>
 </template>
 
@@ -60,7 +59,6 @@ import ExportDialog from '@/components/ExportDialog.vue'
 import QuickOpen from '@/components/QuickOpen.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import FileHistoryDialog from '@/components/FileHistoryDialog.vue'
-import ToastHost from '@/components/ToastHost.vue'
 import { toggleWrap, setHeading, insertLink, insertCodeBlock } from '@/core/markdown/editing'
 import { formatTableAtCursor } from '@/core/markdown/tableFormat'
 
