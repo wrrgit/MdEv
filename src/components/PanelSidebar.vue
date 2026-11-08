@@ -208,11 +208,11 @@
             <option value="project">跨文件</option>
           </select>
         </div>
-        <div class="search-meta" v-if="hasSearched && searchScope !== 'file'">
+        <div class="search-meta" v-if="hasSearched">
           <template v-if="searchResults.length > 0">找到 {{ searchResults.length }} 个匹配</template>
           <template v-else>无匹配项</template>
         </div>
-        <div class="search-results" v-if="searchScope !== 'file' && groupedResults.length > 0">
+        <div class="search-results" v-if="groupedResults.length > 0">
           <div v-for="group in groupedResults" :key="group.label" class="search-group">
             <div class="search-group-header" :title="group.label">
               <span class="search-group-name">{{ group.label }}</span>
@@ -239,7 +239,7 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
-import { setSearchQuery, SearchQuery, openSearchPanel } from '@codemirror/search'
+import { setSearchQuery, SearchQuery } from '@codemirror/search'
 import FileTree from './FileTree.vue'
 
 const store = useEditorStore()
@@ -269,7 +269,24 @@ watch(() => store.searchFocusRequest, () => {
   }
   nextTick(() => {
     const el = searchInputEl.value
-    if (el) { el.focus(); el.select() }
+    // 若搜索框为空且编辑器有选区，预填选区首行文本（选中即搜）
+    if (el && !searchInput.value) {
+      const view = window.editorRef
+      if (view) {
+        const sel = view.state.selection.main
+        if (!sel.empty) {
+          const raw = view.state.sliceDoc(sel.from, sel.to).trim()
+          const firstLine = raw.split(/\r?\n/)[0].trim()
+          if (firstLine) searchInput.value = firstLine
+        }
+      }
+    }
+    if (el) {
+      el.focus()
+      if (searchInput.value) el.select()
+    }
+    // 预填后若已有词，立即执行一次搜索，结果即时可见
+    if (searchInput.value) doSearch()
   })
 })
 
@@ -657,20 +674,40 @@ async function doSearch() {
   if (!searchInput.value.trim()) return
   hasSearched.value = true
 
-  // 预览区搜索词高亮（两种范围都生效）
+  // 预览区搜索词高亮（三种范围都生效）
   store.searchHighlightTerm = searchInput.value
 
+  const term = searchInput.value
+  const lowerTerm = term.toLowerCase()
+
   if (searchScope.value === 'file') {
-    // 文件内搜索：把搜索词填入 CodeMirror 搜索面板并打开
-    const view = window.editorRef
-    if (view) {
-      view.dispatch({
-        effects: setSearchQuery.of(new SearchQuery({ search: searchInput.value }))
-      })
-      openSearchPanel(view)
-      view.focus()
+    // 文件内搜索：扫描当前标签页内容，结果在侧栏列表展示，并同步编辑区高亮
+    const tab = store.activeTab
+    const results = []
+    if (tab) {
+      const lines = (tab.content || '').split(/\r?\n/)
+      for (let i = 0; i < lines.length; i++) {
+        const lowerLine = lines[i].toLowerCase()
+        let idx = lowerLine.indexOf(lowerTerm)
+        if (idx === -1) continue
+        const matches = []
+        while (idx !== -1) {
+          matches.push({ index: idx, length: term.length })
+          idx = lowerLine.indexOf(lowerTerm, idx + term.length)
+        }
+        results.push({
+          tabId: tab.id,
+          file: tab.filePath || '',
+          relativePath: tab.fileName,
+          line: i + 1,
+          lineContent: lines[i],
+          matches
+        })
+        if (results.length >= 500) break
+      }
     }
-    searchResults.value = []
+    searchResults.value = results
+    editorHighlight(term)
   } else if (searchScope.value === 'open') {
     // 打开的文件中搜索：遍历所有已打开标签页的内容（渲染进程内完成，无需 IPC）
     const term = searchInput.value
