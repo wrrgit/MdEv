@@ -71,6 +71,7 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
+      "electron/preload.cjs",
       "package.json"
     ],
     "extraMetadata": {

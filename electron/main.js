@@ -21,6 +21,19 @@ protocol.registerSchemesAsPrivileged([
 
 let mainWindow = null
 
+// preload 由构建脚本复制到 dist-electron/preload.cjs；同时把源文件打进 asar 作兜底。
+// 必须保证至少一个路径存在，否则 contextBridge 不执行、window.api 为 undefined，
+// 打开文件/打开文件夹/最小化/最大化/关闭以及原生菜单事件都会静默失效。
+function resolvePreloadPath() {
+  const candidates = [
+    join(__dirname, 'preload.cjs'),
+    join(__dirname, '..', 'electron', 'preload.cjs')
+  ]
+  const found = candidates.find(p => existsSync(p))
+  if (!found) console.error('[mdev] preload.cjs 未找到，window.api 将不可用:', candidates)
+  return found || candidates[0]
+}
+
 // ── 通过文件关联启动：从命令行参数中提取待打开的文档路径 ──
 let pendingOpenPath = null
 
@@ -84,9 +97,9 @@ async function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: 'MdEv',
-    icon: nativeImage.createFromPath(join(__dirname, '..', 'assets', 'icons', 'icon.png')),
+    icon: nativeImage.createFromPath(join(__dirname, 'assets', 'icons', 'icon.png')),
     webPreferences: {
-      preload: join(__dirname, 'preload.cjs'),
+      preload: resolvePreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false
