@@ -131,8 +131,10 @@ function createMarkdownParser() {
   // 脚注
   md.use(markdownItFootnote)
 
-  // Emoji 短代码（:smile: → 😄）— v3 兼容 full/light/default 两种导出形态
-  const emojiPlugin = emojiPkg.full || emojiPkg.default?.full || emojiPkg.default
+  // Emoji 短代码（:smile: → 😄）
+  // markdown-it-emoji@3 仅暴露具名导出 full / light / bare，无 default 导出，
+  // 用命名导出兜底，避免 Rollup 报 "default is not exported" 导致渲染构建失败。
+  const emojiPlugin = emojiPkg.full || emojiPkg.light || emojiPkg.bare
   if (emojiPlugin) md.use(emojiPlugin)
 
   // 定义列表（术语

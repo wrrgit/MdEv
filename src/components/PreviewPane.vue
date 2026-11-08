@@ -160,7 +160,11 @@ function buildLineGutter() {
     span.style.top = a.top + 'px'
     gutter.appendChild(span)
   }
-  content.appendChild(gutter)
+  // 关键：必须插到内容最前面（而非 appendChild 到末尾）。
+  // gutter 是 0 尺寸的 sticky 盒子，作为 .plg-num 绝对定位的偏移参照物；
+  // 只有锚定在内容顶部时，top:a.top（以内容顶部为 0 基准）的偏移才正确，
+  // 否则会被放到内容流底部之下而整片不可见。
+  content.insertBefore(gutter, content.firstChild)
 }
 
 // 锚点 + 行号层一起重建（字体/缩放/切标签/渲染后均需同步）
