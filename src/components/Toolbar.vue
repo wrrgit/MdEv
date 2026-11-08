@@ -623,8 +623,12 @@ async function executeItem(item) {
 }
 .toolbar-font-btn.active {
   color: var(--accent-color);
-  background: var(--hover-bg);
+}
+/* 滚动联动按钮：联动时仅点亮中间小图标（主题色），不改变底色/边框，与其它图标风格统一 */
+.scroll-sync-btn.active {
+  background: var(--bg-primary);
   border-color: var(--border-color);
+  color: var(--accent-color);
 }
 .toolbar-font-size {
   font-size: 12px;
