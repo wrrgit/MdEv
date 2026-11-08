@@ -240,6 +240,9 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
 import { setSearchQuery, SearchQuery } from '@codemirror/search'
+import { EditorView } from '@codemirror/view'
+import { EditorSelection } from '@codemirror/state'
+import { lockScrollSync } from '@/core/scrollMapper'
 import FileTree from './FileTree.vue'
 
 const store = useEditorStore()
@@ -556,8 +559,14 @@ function jumpToLine(line) {
       const pos = editor.state.doc.line(line).from
       editor.dispatch({
         selection: { anchor: pos },
-        // x:'nearest' 在命中内容需要左右滑动（水平滚动）时也把它带入可视区
-        scrollIntoView: { y: 'start', x: 'nearest' }
+        // 注意：transaction spec 的 scrollIntoView 只接受布尔值，写成对象会被当成
+        // true → "nearest"（把命中行贴到视口边缘，被上/下区域裁切）。必须用
+        // EditorView.scrollIntoView 生成的 StateEffect 才能指定 center 策略。
+        effects: EditorView.scrollIntoView(pos, {
+          y: 'center',
+          x: 'nearest',
+          xMargin: 24
+        })
       })
       editor.focus()
     } catch {}
@@ -768,27 +777,35 @@ function selectMatchInLine(line, term, focus) {
   try {
     const l = view.state.doc.line(line)
     const idx = l.text.toLowerCase().indexOf(term.toLowerCase())
-    if (idx >= 0) {
-      view.dispatch({
-        selection: { anchor: l.from + idx, head: l.from + idx + term.length },
-        // x:'nearest' 保证命中词即便在水平滚动范围外也能滚入可视区
-        scrollIntoView: { y: 'center', x: 'nearest' }
+    const from = idx >= 0 ? l.from + idx : l.from
+    const to = idx >= 0 ? from + term.length : from
+    // 用 StateEffect 精确控制滚动：y:'center' 让命中词垂直居中（不被顶部工具栏
+    // 快捷图标、底部状态栏贴合裁切），x:'nearest' 仅在水平滚动范围外时滚入可视区。
+    view.dispatch({
+      selection: { anchor: from, head: to },
+      effects: EditorView.scrollIntoView(EditorSelection.range(from, to), {
+        y: 'center',
+        x: 'nearest',
+        xMargin: 24
       })
-    } else {
-      view.dispatch({ selection: { anchor: l.from }, scrollIntoView: { y: 'center', x: 'nearest' } })
-    }
+    })
     if (focus) view.focus()
   } catch {}
 }
 
-// 预览区水平滚动：把目标行内的搜索命中词带入水平可视区
-// （垂直滚动由滚动联动 scrollSyncSource 负责；此处仅补充左右滑动场景）
+// 搜索跳转后的预览区可视区收口：同时保证垂直不贴边、水平不越界。
+// 背景：滚动联动 watcher 用「目标行对齐视口顶部」，命中行会贴在预览区上/下边缘，
+// 视觉上被顶部工具栏快捷图标、底部状态栏区域裁切；CodeMirror 侧同理。
+// 这里在最后一步直接按 DOM 实测位置纠正，不依赖锚点插值，也能覆盖联动被关闭的场景。
 function scrollPreviewHitIntoView(line) {
   const scroller = document.querySelector('.preview-scroll')
   if (!scroller) return
   const content = scroller.querySelector('.markdown-body') || scroller
-  // 定位目标行所在块：data-source-line <= line 的最大者（段落跨多行时取起始行块）
+  // 定位目标行所在块：data-source-line <= line 的最大者（段落跨多行时取起始行块）。
+  // 与滚动锚点/行号层保持一致，只取最内层块：外层容器（ul/blockquote/table）也带
+  // data-source-line，若拿它当定位目标，整块高度会把居中计算带偏。
   const blocks = Array.from(content.querySelectorAll('[data-source-line]'))
+    .filter(b => !b.querySelector('[data-source-line]'))
   let block = null
   for (const b of blocks) {
     const sl = parseInt(b.dataset.sourceLine, 10)
@@ -796,13 +813,26 @@ function scrollPreviewHitIntoView(line) {
     if (sl <= line) block = b; else break
   }
   const hit = (block && block.querySelector('mark.search-hit')) || content.querySelector('mark.search-hit')
-  if (!hit) return
-  const hitRect = hit.getBoundingClientRect()
+  // 高亮尚未渲染时（首次搜索、词刚变化）退回到整块定位，保证仍能滚到目标位置
+  const target = hit || block
+  if (!target) return
   const contRect = scroller.getBoundingClientRect()
-  if (hitRect.left < contRect.left) {
-    scroller.scrollLeft += hitRect.left - contRect.left - 8
-  } else if (hitRect.right > contRect.right) {
-    scroller.scrollLeft += hitRect.right - contRect.right + 8
+  const viewH = contRect.height
+  const SAFE = 48 // 上/下安全边距：避开工具栏浮层与状态栏，避免「上下区域遮盖」
+  const rect = target.getBoundingClientRect()
+  const top = rect.top - contRect.top
+  const bottom = rect.bottom - contRect.top
+  // 垂直：目标未完整落在安全区内时，滚到视口偏上 1/3 处（不贴顶部/底部边缘）
+  if (top < SAFE || bottom > viewH - SAFE) {
+    const wanted = Math.max(SAFE, Math.min(viewH - SAFE - rect.height, viewH * 0.34))
+    scroller.scrollTop += top - wanted
+  }
+  // 水平：仅在命中词超出左右边界时滚入，保留 12px 余量
+  const r2 = target.getBoundingClientRect()
+  if (r2.left < contRect.left + 12) {
+    scroller.scrollLeft += r2.left - contRect.left - 12
+  } else if (r2.right > contRect.right - 12) {
+    scroller.scrollLeft += r2.right - contRect.right + 12
   }
 }
 
@@ -816,9 +846,17 @@ function navigateToResult(result, focusEditor = false) {
     nextTick(() => nextTick(() => {
       jumpToLine(result.line)
       selectMatchInLine(result.line, searchInput.value, focusEditor)
-      store.scrollSyncSource = { source: 'editor', line: result.line }
-      // 预览区命中词水平滚入可视区（等搜索高亮 mark 渲染完成）
-      nextTick(() => scrollPreviewHitIntoView(result.line))
+      // center：通知预览区把命中行放到视口偏上 1/3 处，而不是顶部对齐
+      store.scrollSyncSource = { source: 'editor', line: result.line, center: true }
+      // 程序化滚动会派发两栏 scroll 事件；短暂锁住回环，避免编辑器写回一个
+      // 不带 center 的 scrollSyncSource，把预览区又拉回「贴顶」位置
+      lockScrollSync('editor')
+      lockScrollSync('preview')
+      // 双 rAF：等搜索高亮 mark 渲染、两栏 rAF 滚动同步回调都跑完，再做最终
+      // DOM 实测纠正（垂直安全区 + 水平滚入），确保命中词完整可见、不被上下区域裁切
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        scrollPreviewHitIntoView(result.line)
+      }))
     }))
   }
 

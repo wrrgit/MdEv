@@ -331,7 +331,11 @@ watch(() => store.scrollSyncSource, (val) => {
   }
   const y = lineToY(cache.anchors, val.line)
   if (y == null) return
-  el.scrollTop = Math.max(0, y + cache.pad)
+  // 普通滚动联动：目标行对齐视口顶部（两栏逐行对应）。
+  // 搜索结果跳转（center）：把命中行放到视口偏上 1/3 处，留出上下安全边距，
+  // 避免高亮紧贴顶部工具栏/快捷图标区域或底部状态栏而被裁切。
+  const centerOffset = val.center ? Math.max(0, el.clientHeight * 0.34) : 0
+  el.scrollTop = Math.max(0, y + cache.pad - centerOffset)
 })
 
 watch(() => store.activeTabId, () => {
@@ -559,6 +563,7 @@ function setupMermaidLazy() {
   to { opacity: 1; }
 }
 .markdown-body {
+  position: relative;
   padding: 24px 32px;
   font-size: var(--preview-font-size);
   font-family: var(--preview-font-family);
@@ -633,9 +638,12 @@ function setupMermaidLazy() {
 .markdown-body.has-line-gutter {
   padding-left: 56px;
 }
-/* 行号层：sticky 仅锁水平（left:0），垂直随内容滚动；宽度 0 不占布局 */
+/* 行号层：脱离文档流（absolute），锚定到 .markdown-body 的左上角（padding 区内），
+   因此数字落在文字左侧的留白区，不再与正文重叠；垂直随内容滚动，水平随内容滚动
+   （与各自行保持对齐）。 */
 .preview-line-gutter {
-  position: sticky;
+  position: absolute;
+  top: 0;
   left: 0;
   width: 0;
   height: 0;
