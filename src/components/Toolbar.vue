@@ -52,9 +52,11 @@
         class="toolbar-font-btn scroll-sync-btn"
         :class="{ active: store.settings.scrollSync }"
         @click="toggleScrollSync"
-        title="滚动联动（编辑/预览同步滚动）"
+        :title="store.settings.scrollSync ? '滚动联动：开（编辑/预览同步滚动）' : '滚动联动：关（编辑/预览独立滚动）'"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        <!-- 联动开启：连接（link）图标；关闭：断开（unlink）图标，形状差异一目了然 -->
+        <svg v-if="store.settings.scrollSync" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.84 12.25l1.72-1.71a5.003 5.003 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M5.17 11.75l-1.71 1.71a5.003 5.003 0 0 0 7.07 7.07l1.71-1.71"/><line x1="8" y1="2.5" x2="22" y2="16.5"/></svg>
       </button>
     </div>
   </div>
@@ -624,10 +626,9 @@ async function executeItem(item) {
 .toolbar-font-btn.active {
   color: var(--accent-color);
 }
-/* 滚动联动按钮：联动时仅点亮中间小图标（主题色），不改变底色/边框，与其它图标风格统一 */
+/* 滚动联动按钮：开/关用两套语义图标（link 连接 / unlink 断开），
+   形状差异一目了然；开启时图标用主题色点亮（不换底色，避免突兀），与其它图标风格统一 */
 .scroll-sync-btn.active {
-  background: var(--bg-primary);
-  border-color: var(--border-color);
   color: var(--accent-color);
 }
 .toolbar-font-size {

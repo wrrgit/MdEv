@@ -7,6 +7,10 @@ import { copyFileSync, mkdirSync, existsSync, readdirSync } from 'fs'
 
 export default defineConfig(({ command, mode }) => {
   const isElectron = process.env.ELECTRON === 'true' || mode === 'electron'
+  // 默认清空输出目录；沙箱构建环境有批量删除守卫会拦截 >50 文件的 emptyDir，
+  // 此时用 MDEV_KEEP_DIST=1 关闭清空以完成构建（不影响用户本机正常打包，
+  // 因为该环境变量不设置时默认仍为 true）。
+  const emptyOutDir = process.env.MDEV_KEEP_DIST !== '1'
 
   const plugins = [vue()]
 
@@ -23,6 +27,7 @@ export default defineConfig(({ command, mode }) => {
           vite: {
             build: {
               outDir: 'dist-electron',
+              emptyOutDir,
               minify: process.env.NODE_ENV === 'production',
               rollupOptions: {
                 external: ['electron']
@@ -98,7 +103,7 @@ export default defineConfig(({ command, mode }) => {
     },
     build: {
       outDir: 'dist',
-      emptyOutDir: true,
+      emptyOutDir,
       rollupOptions: {
         output: {
           manualChunks: {

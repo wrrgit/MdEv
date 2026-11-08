@@ -556,7 +556,8 @@ function jumpToLine(line) {
       const pos = editor.state.doc.line(line).from
       editor.dispatch({
         selection: { anchor: pos },
-        scrollIntoView: 'start'
+        // x:'nearest' 在命中内容需要左右滑动（水平滚动）时也把它带入可视区
+        scrollIntoView: { y: 'start', x: 'nearest' }
       })
       editor.focus()
     } catch {}
@@ -770,13 +771,39 @@ function selectMatchInLine(line, term, focus) {
     if (idx >= 0) {
       view.dispatch({
         selection: { anchor: l.from + idx, head: l.from + idx + term.length },
-        scrollIntoView: 'center'
+        // x:'nearest' 保证命中词即便在水平滚动范围外也能滚入可视区
+        scrollIntoView: { y: 'center', x: 'nearest' }
       })
     } else {
-      view.dispatch({ selection: { anchor: l.from }, scrollIntoView: 'center' })
+      view.dispatch({ selection: { anchor: l.from }, scrollIntoView: { y: 'center', x: 'nearest' } })
     }
     if (focus) view.focus()
   } catch {}
+}
+
+// 预览区水平滚动：把目标行内的搜索命中词带入水平可视区
+// （垂直滚动由滚动联动 scrollSyncSource 负责；此处仅补充左右滑动场景）
+function scrollPreviewHitIntoView(line) {
+  const scroller = document.querySelector('.preview-scroll')
+  if (!scroller) return
+  const content = scroller.querySelector('.markdown-body') || scroller
+  // 定位目标行所在块：data-source-line <= line 的最大者（段落跨多行时取起始行块）
+  const blocks = Array.from(content.querySelectorAll('[data-source-line]'))
+  let block = null
+  for (const b of blocks) {
+    const sl = parseInt(b.dataset.sourceLine, 10)
+    if (!Number.isFinite(sl)) continue
+    if (sl <= line) block = b; else break
+  }
+  const hit = (block && block.querySelector('mark.search-hit')) || content.querySelector('mark.search-hit')
+  if (!hit) return
+  const hitRect = hit.getBoundingClientRect()
+  const contRect = scroller.getBoundingClientRect()
+  if (hitRect.left < contRect.left) {
+    scroller.scrollLeft += hitRect.left - contRect.left - 8
+  } else if (hitRect.right > contRect.right) {
+    scroller.scrollLeft += hitRect.right - contRect.right + 8
+  }
 }
 
 // 跳转并同步高亮：预览区（mark.search-hit）+ 编辑区（CM 搜索高亮 + 选中命中）
@@ -790,6 +817,8 @@ function navigateToResult(result, focusEditor = false) {
       jumpToLine(result.line)
       selectMatchInLine(result.line, searchInput.value, focusEditor)
       store.scrollSyncSource = { source: 'editor', line: result.line }
+      // 预览区命中词水平滚入可视区（等搜索高亮 mark 渲染完成）
+      nextTick(() => scrollPreviewHitIntoView(result.line))
     }))
   }
 
