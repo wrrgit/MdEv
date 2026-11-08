@@ -252,7 +252,28 @@ function onGlobalKeydown(e) {
   if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'p') {
     e.preventDefault()
     store.showQuickOpen = !store.showQuickOpen
+    return
   }
+  // Ctrl+F 文内查找 / Ctrl+Shift+F 跨文件搜索（Electron 原生菜单也会发 menu:find，
+  // 此处作为 web 端兜底并统一聚焦输入框；native 菜单消费按键时渲染进程不会收到，不会重复）
+  if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f') {
+    e.preventDefault()
+    activateSearch('file')
+    return
+  }
+  if (mod && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f') {
+    e.preventDefault()
+    activateSearch('project')
+    return
+  }
+}
+
+// 激活搜索：打开侧栏搜索面板、预置范围并请求聚焦输入框
+function activateSearch(scope) {
+  store.sidebarVisible = true
+  store.sidebarPanel = 'search'
+  store.searchActivateScope = scope
+  store.searchFocusRequest++
 }
 
 // ── 拖拽文件到窗口打开（.md 等文本文件；图片由编辑区拖拽处理）──
@@ -341,8 +362,8 @@ const paletteCommands = computed(() => [
   // 编辑
   { id: 'edit.undo', section: '编辑', title: '撤销', hint: 'Ctrl+Z', keywords: 'undo', run: () => window.editorUndo?.() },
   { id: 'edit.redo', section: '编辑', title: '重做', hint: 'Ctrl+Y', keywords: 'redo', run: () => window.editorRedo?.() },
-  { id: 'edit.find', section: '编辑', title: '文件内查找', hint: 'Ctrl+F', keywords: 'find search', run: () => { store.sidebarVisible = true; store.sidebarPanel = 'search' } },
-  { id: 'edit.findGlobal', section: '编辑', title: '跨文件搜索', hint: 'Ctrl+Shift+F', keywords: 'global search', run: () => { store.sidebarVisible = true; store.sidebarPanel = 'search' } },
+  { id: 'edit.find', section: '编辑', title: '文件内查找', hint: 'Ctrl+F', keywords: 'find search', run: () => activateSearch('file') },
+  { id: 'edit.findGlobal', section: '编辑', title: '跨文件搜索', hint: 'Ctrl+Shift+F', keywords: 'global search', run: () => activateSearch('project') },
   { id: 'edit.table', section: '编辑', title: '格式化当前表格', hint: 'Shift+Alt+F', keywords: 'format table align', run: () => withEditor(formatTableAtCursor) },
   { id: 'edit.copyHtml', section: '编辑', title: '复制为 HTML', keywords: 'copy html clipboard', run: async () => {
     if (!store.activeTab) return
@@ -499,10 +520,10 @@ onMounted(async () => {
       store.showExport = true
     })
     window.api.onMenuEvent('menu:find', () => {
-      store.sidebarPanel = 'search'
+      activateSearch('file')
     })
     window.api.onMenuEvent('menu:find-global', () => {
-      store.sidebarPanel = 'search'
+      activateSearch('project')
     })
     window.api.onMenuEvent('menu:settings', () => {
       store.showSettings = true

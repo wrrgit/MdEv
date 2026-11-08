@@ -109,7 +109,13 @@
             <div class="form-group">
               <label class="toggle-label">
                 <input type="checkbox" v-model="localSettings.showLineNumbers" />
-                <span>显示行号</span>
+                <span>显示行号（编辑区）</span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label class="toggle-label">
+                <input type="checkbox" v-model="localSettings.showPreviewLineNumbers" />
+                <span>显示行号（预览区）</span>
               </label>
             </div>
             <div class="form-group">

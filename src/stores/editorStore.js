@@ -69,6 +69,10 @@ export const useEditorStore = defineStore('editor', () => {
   const searchHighlightTerm = ref('')
   // 右键菜单等处发起的搜索请求：{ term, scope: 'file' | 'open' }，由搜索面板监听消费
   const searchRequest = ref(null)
+  // Ctrl+F / 命令面板 / 菜单发起的「聚焦搜索框」请求：自增计数触发 PanelSidebar 聚焦；
+  // searchActivateScope 指定预置范围（'file' | 'open' | 'project'），null 表示沿用当前范围
+  const searchFocusRequest = ref(0)
+  const searchActivateScope = ref(null)
 
   // ── UI ──
   const showWelcome = ref(true)
@@ -100,6 +104,7 @@ export const useEditorStore = defineStore('editor', () => {
     focusMode: false,
     typewriterMode: false,
     showLineNumbers: true,
+    showPreviewLineNumbers: true,
     highlightActiveLine: true,
     matchBrackets: true,
     codeFolding: true,
@@ -410,6 +415,7 @@ export const useEditorStore = defineStore('editor', () => {
     isPathExpanded, togglePathExpanded, collapseAllPaths, expandPath, expandAllPaths,
     applyExpandedToTree,
     searchQuery, searchResults, searchMode, searchHighlightTerm, searchRequest,
+    searchFocusRequest, searchActivateScope,
     showWelcome, sidebarPanel, sidebarVisible, sidebarWidth, showSettings, showExport, showAbout, showQuickOpen, showCommandPalette, showHistory, exportFormat,
     settings,
     recentFiles, recentFolders,

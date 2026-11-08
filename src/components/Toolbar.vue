@@ -49,11 +49,13 @@
       <button class="toolbar-font-btn" @click="increaseFontSize" title="增大字体">A+</button>
       <div class="toolbar-separator"></div>
       <button
-        class="toolbar-font-btn"
+        class="toolbar-font-btn scroll-sync-btn"
         :class="{ active: store.settings.scrollSync }"
         @click="toggleScrollSync"
-        title="滚动联动"
-      >🖇</button>
+        title="滚动联动（编辑/预览同步滚动）"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      </button>
     </div>
   </div>
 </template>
@@ -620,9 +622,9 @@ async function executeItem(item) {
   background: var(--active-bg);
 }
 .toolbar-font-btn.active {
-  background: var(--accent-color);
-  color: #fff;
-  border-color: var(--accent-color);
+  color: var(--accent-color);
+  background: var(--hover-bg);
+  border-color: var(--border-color);
 }
 .toolbar-font-size {
   font-size: 12px;

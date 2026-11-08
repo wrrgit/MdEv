@@ -184,27 +184,49 @@
       <div v-if="store.sidebarPanel === 'search'" class="sidebar-panel">
         <div class="panel-header">
           <span>搜索</span>
+          <div class="panel-header-actions">
+            <button class="panel-action-btn" @click="doSearch" title="搜索 (Enter)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </button>
+          </div>
         </div>
         <div class="search-box">
           <input
+            ref="searchInputEl"
             v-model="searchInput"
             type="text"
-            placeholder="搜索..."
+            placeholder="搜索…  (↑/↓ 切换 · Enter 下一个 · Esc 退出)"
             class="search-input"
-            @keydown.enter="doSearch"
+            @keydown.enter.prevent="onSearchEnter"
+            @keydown.down.prevent="onResultNav(1)"
+            @keydown.up.prevent="onResultNav(-1)"
+            @keydown.esc="onSearchEsc"
           />
-          <select v-model="searchScope" class="search-scope">
+          <select v-model="searchScope" class="search-scope" @change="onScopeChange">
             <option value="file">文件内</option>
             <option value="open">打开的文件</option>
             <option value="project">跨文件</option>
           </select>
         </div>
-        <div class="search-results" v-if="searchResults.length > 0">
-          <div v-for="result in searchResults" :key="(result.tabId || '') + result.file + result.line" class="search-result-item">
-            <div class="result-file">{{ result.relativePath }}</div>
-            <div class="result-line" @click="openResult(result)">
-              <span class="line-num">{{ result.line }}</span>
-              <span class="line-content" v-html="highlightMatch(result.lineContent, result.matches)"></span>
+        <div class="search-meta" v-if="hasSearched && searchScope !== 'file'">
+          <template v-if="searchResults.length > 0">找到 {{ searchResults.length }} 个匹配</template>
+          <template v-else>无匹配项</template>
+        </div>
+        <div class="search-results" v-if="searchScope !== 'file' && groupedResults.length > 0">
+          <div v-for="group in groupedResults" :key="group.label" class="search-group">
+            <div class="search-group-header" :title="group.label">
+              <span class="search-group-name">{{ group.label }}</span>
+              <span class="search-group-count">{{ group.items.length }}</span>
+            </div>
+            <div
+              v-for="item in group.items"
+              :key="item._idx"
+              class="search-result-item"
+              :class="{ active: item._idx === activeResultIndex }"
+              @click="navigateToResult(item, true)"
+            >
+              <span class="line-num">{{ item.line }}</span>
+              <span class="line-content" v-html="highlightMatch(item.lineContent, item.matches)"></span>
             </div>
           </div>
         </div>
@@ -224,13 +246,31 @@ const store = useEditorStore()
 const searchInput = ref('')
 const searchScope = ref('file')
 const searchResults = ref([])
+const searchInputEl = ref(null)
+const activeResultIndex = ref(0)
+const hasSearched = ref(false)
 
 // 输入清空时同步清除预览区搜索高亮
 watch(searchInput, (val) => {
   if (!val) {
     store.searchHighlightTerm = ''
     searchResults.value = []
+    hasSearched.value = false
   }
+})
+
+// 搜索结果变化：重置当前高亮项
+watch(searchResults, () => { activeResultIndex.value = 0 })
+
+// Ctrl+F / 菜单 / 命令面板发起的「聚焦搜索框」请求：预置范围并聚焦
+watch(() => store.searchFocusRequest, () => {
+  if (store.searchActivateScope && ['file', 'open', 'project'].includes(store.searchActivateScope)) {
+    searchScope.value = store.searchActivateScope
+  }
+  nextTick(() => {
+    const el = searchInputEl.value
+    if (el) { el.focus(); el.select() }
+  })
 })
 
 // 右键菜单等处发起的搜索请求：填入搜索词与范围后立即执行
@@ -244,6 +284,42 @@ watch(() => store.searchRequest, async (req) => {
   doSearch()
   store.searchRequest = null
 })
+
+// 按文件分组展示搜索结果（文件内范围无 tabId，relativePath 为文件名；跨文件为路径）
+const groupedResults = computed(() => {
+  const map = new Map()
+  searchResults.value.forEach((r, idx) => {
+    const key = r.relativePath || r.file || '(未知文件)'
+    if (!map.has(key)) map.set(key, { label: key, items: [] })
+    map.get(key).items.push({ ...r, _idx: idx })
+  })
+  return Array.from(map.values())
+})
+
+// Enter：无结果时执行搜索；已有结果时跳转到当前高亮项
+function onSearchEnter() {
+  if (searchResults.value.length === 0) {
+    doSearch()
+    return
+  }
+  navigateToResult(searchResults.value[activeResultIndex.value], false)
+}
+
+// ↑/↓：在结果间移动并实时跳转（编辑区 + 预览区同步高亮），不抢夺输入框焦点
+function onResultNav(dir) {
+  const n = searchResults.value.length
+  if (n === 0) { doSearch(); return }
+  activeResultIndex.value = (activeResultIndex.value + dir + n) % n
+  navigateToResult(searchResults.value[activeResultIndex.value], false)
+}
+
+function onSearchEsc() {
+  searchInputEl.value?.blur()
+}
+
+function onScopeChange() {
+  if (searchInput.value.trim()) doSearch()
+}
 
 const hasTabs = computed(() => store.tabs.length > 0)
 const hasFileTree = computed(() => store.fileTree.length > 0)
@@ -579,6 +655,7 @@ function collapseAll() {
 
 async function doSearch() {
   if (!searchInput.value.trim()) return
+  hasSearched.value = true
 
   // 预览区搜索词高亮（两种范围都生效）
   store.searchHighlightTerm = searchInput.value
@@ -635,30 +712,62 @@ async function doSearch() {
   }
 }
 
-function openResult(result) {
-  // 来自"打开的文件"范围的结果：直接激活对应标签页（保留未保存内容），再跳转行号
+// 编辑区（CodeMirror）同步高亮搜索词：setSearchQuery 即可高亮全文件匹配
+// （search() 扩展已注册，无需打开搜索面板，也不会抢夺焦点）
+function editorHighlight(term) {
+  if (!term) return
+  const view = window.editorRef
+  if (!view) return
+  view.dispatch({
+    effects: setSearchQuery.of(new SearchQuery({ search: term, caseSensitive: false }))
+  })
+}
+
+// 在目标行内选中匹配文本，使编辑区当前命中更明显
+function selectMatchInLine(line, term, focus) {
+  const view = window.editorRef
+  if (!view || !term) return
+  try {
+    const l = view.state.doc.line(line)
+    const idx = l.text.toLowerCase().indexOf(term.toLowerCase())
+    if (idx >= 0) {
+      view.dispatch({
+        selection: { anchor: l.from + idx, head: l.from + idx + term.length },
+        scrollIntoView: 'center'
+      })
+    } else {
+      view.dispatch({ selection: { anchor: l.from }, scrollIntoView: 'center' })
+    }
+    if (focus) view.focus()
+  } catch {}
+}
+
+// 跳转并同步高亮：预览区（mark.search-hit）+ 编辑区（CM 搜索高亮 + 选中命中）
+function navigateToResult(result, focusEditor = false) {
+  if (searchInput.value) store.searchHighlightTerm = searchInput.value
+  editorHighlight(searchInput.value)
+
+  const afterJump = () => {
+    // 双 nextTick：等待标签切换/文档更新后定位
+    nextTick(() => nextTick(() => {
+      jumpToLine(result.line)
+      selectMatchInLine(result.line, searchInput.value, focusEditor)
+      store.scrollSyncSource = { source: 'editor', line: result.line }
+    }))
+  }
+
   if (result.tabId) {
     const tab = store.tabs.find(t => t.id === result.tabId)
     if (tab) {
       store.setActiveTab(result.tabId)
-      // 双 nextTick：等待标签切换 + CodeMirror 文档更新完成后再定位
-      nextTick(() => nextTick(() => {
-        jumpToLine(result.line)
-        store.scrollSyncSource = { source: 'editor', line: result.line }
-      }))
+      afterJump()
     }
     return
   }
-  // Open file and jump to line
   window.api?.readFile(result.file).then((res) => {
     if (res.success) {
       store.addTab(result.file, res.content, result.fileName)
-      // 双 nextTick：等待标签切换 + CodeMirror 文档更新完成后再定位
-      nextTick(() => nextTick(() => {
-        jumpToLine(result.line)
-        // 联动预览区滚动到目标行
-        store.scrollSyncSource = { source: 'editor', line: result.line }
-      }))
+      afterJump()
     }
   })
 }
@@ -945,7 +1054,56 @@ function highlightMatch(lineContent, matches) {
   font-size: 12px;
 }
 .search-results { flex: 1; overflow-y: auto; }
-.search-result-item { padding: 4px 8px; border-bottom: 1px solid var(--border-color); }
+.search-meta {
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+}
+.search-group { margin-bottom: 4px; }
+.search-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 2px;
+  position: sticky;
+  top: 0;
+  background: var(--bg-sidebar);
+  z-index: 1;
+}
+.search-group-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-group-count {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--hover-bg);
+  border-radius: 8px;
+  padding: 0 6px;
+  line-height: 16px;
+}
+.search-result-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 10px 3px 12px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+}
+.search-result-item:hover { background: var(--hover-bg); }
+.search-result-item.active { background: var(--accent-color); }
+.search-result-item.active .line-num,
+.search-result-item.active .line-content { color: #fff; }
+.search-result-item mark { background: #ffd43b; color: inherit; border-radius: 2px; padding: 0 1px; }
+.search-result-item.active mark { background: #fff3b0; color: var(--text-primary); }
 
 .recent-content {
   flex: 1;

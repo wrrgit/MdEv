@@ -83,7 +83,7 @@ function applySearchHighlights() {
     acceptNode(node) {
       if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT
       const p = node.parentElement
-      if (!p || p.closest('script, style, .search-hit')) return NodeFilter.FILTER_REJECT
+      if (!p || p.closest('script, style, .search-hit, .preview-line-gutter')) return NodeFilter.FILTER_REJECT
       return NodeFilter.FILTER_ACCEPT
     }
   })
@@ -115,6 +115,59 @@ function applySearchHighlights() {
 watch(() => store.searchHighlightTerm, () => {
   nextTick(applySearchHighlights)
 })
+
+// ── 预览区源码行号 gutter ──
+// 复用 parser 注入的 data-source-line，在每个块级元素起始源码行处渲染行号，
+// 与编辑区行号、搜索结果、滚动同步共用同一套 1 基行号约定。
+// 行号层随内容滚动、水平滚动时 sticky 钉在左侧，且不参与搜索高亮遍历（已在上方排除）。
+function clearLineGutter() {
+  const content = previewContent.value
+  if (!content) return
+  content.classList.remove('has-line-gutter')
+  content.querySelector('.preview-line-gutter')?.remove()
+}
+
+function buildLineGutter() {
+  const content = previewContent.value
+  const scroller = previewScroll.value
+  clearLineGutter()
+  if (!content || !scroller) return
+  if (!store.settings.showPreviewLineNumbers) return
+
+  content.classList.add('has-line-gutter')
+  const contentRect = content.getBoundingClientRect()
+  const anchors = []
+  for (const el of content.querySelectorAll('[data-source-line]')) {
+    // 容器元素（内部还有带源码行号的块）交给内部块处理，避免重复映射（与滚动同步一致）
+    if (el.querySelector('[data-source-line]')) continue
+    const line = parseInt(el.dataset.sourceLine, 10)
+    if (!Number.isFinite(line)) continue
+    const rect = el.getBoundingClientRect()
+    anchors.push({ line, top: rect.top - contentRect.top })
+  }
+  if (!anchors.length) return
+  // 同一行存在多个块（如一行多列表格单元格）时，只保留视觉最靠前的一个
+  anchors.sort((a, b) => a.top - b.top || a.line - b.line)
+  const seen = new Set()
+  const deduped = anchors.filter(a => { if (seen.has(a.line)) return false; seen.add(a.line); return true })
+
+  const gutter = document.createElement('div')
+  gutter.className = 'preview-line-gutter'
+  for (const a of deduped) {
+    const span = document.createElement('span')
+    span.className = 'plg-num'
+    span.textContent = String(a.line)
+    span.style.top = a.top + 'px'
+    gutter.appendChild(span)
+  }
+  content.appendChild(gutter)
+}
+
+// 锚点 + 行号层一起重建（字体/缩放/切标签/渲染后均需同步）
+function rebuildOverlays() {
+  rebuildAnchors()
+  buildLineGutter()
+}
 
 // ── 大文件分级预览刷新（对标 VS Code / Obsidian 大文件策略）──
 // 当前每次按键都会全文 markdown-it 解析 + 重建 DOM，对大文件会卡死主线程。
@@ -167,7 +220,7 @@ function renderNow(force = false) {
     .then(() => nextTick())
     .then(() => {
       setupMermaidLazy()
-      rebuildAnchors()
+      rebuildOverlays()
       applySearchHighlights()
     })
     .finally(() => {
@@ -215,11 +268,16 @@ watch(() => store.settings.viewMode, () => {
 
 // 字体/行高变化会改变预览布局，锚点需要重建
 watch(() => [store.settings.previewFontSize, store.settings.previewFontFamily, store.settings.lineHeight], () => {
-  nextTick(rebuildAnchors)
+  nextTick(rebuildOverlays)
+})
+
+// 预览行号开关：即时重建/清除行号层
+watch(() => store.settings.showPreviewLineNumbers, () => {
+  nextTick(buildLineGutter)
 })
 
 // 视图模式 / 预览区尺寸变化（窗口 resize、侧栏拖动、切到双栏）都会让文字重新折行，锚点必须重建
-watch(() => store.settings.viewMode, () => nextTick(rebuildAnchors))
+watch(() => store.settings.viewMode, () => nextTick(rebuildOverlays))
 
 let resizeObserver = null
 function onPreviewKeydown(e) {
@@ -230,7 +288,7 @@ function onPreviewKeydown(e) {
   }
 }
 onMounted(() => {
-  resizeObserver = new ResizeObserver(() => rebuildAnchors())
+  resizeObserver = new ResizeObserver(() => rebuildOverlays())
   if (previewScroll.value) resizeObserver.observe(previewScroll.value)
   if (previewContent.value) resizeObserver.observe(previewContent.value)
   // 首屏渲染（DOM 就绪后）：超大文件不强制渲染，保持打开瞬间流畅（显示横幅，按需刷新）
@@ -275,7 +333,7 @@ watch(() => store.scrollSyncSource, (val) => {
 watch(() => store.activeTabId, () => {
   nextTick(() => {
     if (previewScroll.value) previewScroll.value.scrollTop = 0
-    rebuildAnchors()
+    rebuildOverlays()
   })
 })
 
@@ -565,6 +623,33 @@ function setupMermaidLazy() {
 /* ── 下标、上标、高亮 ── */
 .markdown-body sub { font-size: 0.75em; vertical-align: sub; }
 .markdown-body sup { font-size: 0.75em; vertical-align: super; }
+
+/* ── 预览区源码行号 gutter ── */
+/* 启用行号时给正文让出左侧空间（行号层 sticky 钉在左侧，不参与布局） */
+.markdown-body.has-line-gutter {
+  padding-left: 56px;
+}
+/* 行号层：sticky 仅锁水平（left:0），垂直随内容滚动；宽度 0 不占布局 */
+.preview-line-gutter {
+  position: sticky;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.preview-line-gutter .plg-num {
+  position: absolute;
+  left: 6px;
+  width: 38px;
+  text-align: right;
+  font-family: var(--editor-font-family, monospace);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  user-select: none;
+  white-space: nowrap;
+}
 .markdown-body mark { background: #fff3b0; padding: 0 2px; border-radius: 2px; }
 
 /* ── 搜索词高亮 ── */

@@ -34,6 +34,7 @@ import { useEditorStore } from '@/stores/editorStore'
 import { lockScrollSync, isScrollSyncLocked } from '@/core/scrollMapper'
 import { EditorView, keymap } from '@codemirror/view'
 import { EditorState, Compartment, StateEffect, Prec } from '@codemirror/state'
+import { search } from '@codemirror/search'
 import { focusModeField, typewriterScroll } from '@/core/editor/focusTypewriter'
 import { indentWithTab, undo, redo } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
@@ -352,6 +353,8 @@ const isDark = computed(() => {
 const baseExtensions = [
   // Markdown 语法高亮（basicSetup 不含语言）
   markdown({ base: markdownLanguage }),
+  // 搜索高亮扩展：setSearchQuery 即可高亮全文件匹配（不依赖搜索面板是否打开）
+  search(),
   // 通用 Tab 缩进：必须包成 keymap.of([...]) 才是合法扩展；
   // 裸放 keybinding 对象会被 CodeMirror 在解析扩展时抛 "Unrecognized extension value"，
   // 进而连累整个 :extensions 数组失效（markdown 高亮/自定义键位/主题等全部不生效）。
