@@ -56,6 +56,25 @@ const editorScroll = new Map()
 // 切标签过程中抑制 onContentChange（防误标脏）与 onEditorScroll（防误触发滚动联动）
 let switchingRef = false
 
+// ── P4：EditorState LRU 上限（默认 8），把多文件内存钉在可控范围 ──
+// 超出上限淘汰最久未访问标签的 EditorState（undo 历史 / 光标 / 滚动），但 tab.content 仍在 store，
+// 该标签再度切回时由 getOrCreateState 从 content 重建 state（代价：光标归零、undo 清空，属 LRU 权衡）。
+// 当前激活标签永不淘汰，避免切回即失效。
+const EDITOR_STATE_LIMIT = 8
+const lruOrder = []
+function touchEditorState(id) {
+  if (!id) return
+  const i = lruOrder.indexOf(id)
+  if (i !== -1) lruOrder.splice(i, 1)
+  lruOrder.push(id)
+  while (lruOrder.length > EDITOR_STATE_LIMIT) {
+    const victim = lruOrder.shift()
+    if (victim === store.activeTabId) { lruOrder.push(victim); continue }
+    editorStates.delete(victim)
+    editorScroll.delete(victim)
+  }
+}
+
 // ── 选中文本右键菜单 ──
 const { menuVisible, menuX, menuY, items, open: openMenu, close, onSelect } = useSelectionMenu(store)
 
@@ -81,6 +100,7 @@ const onEditorReady = (payload) => {
   if (store.activeTabId) {
     editorStates.set(store.activeTabId, v.state)
     editorScroll.set(store.activeTabId, 0)
+    touchEditorState(store.activeTabId)
   }
   // P1：初始标签若为大文件，关闭高亮/换行/专注，避免巨量 tokenize 卡顿
   applyLargeFileMode(v, store.activeTab?.isLargeFile)
@@ -186,6 +206,7 @@ function getOrCreateState(tab, view) {
   })
   editorStates.set(tab.id, st)
   editorScroll.set(tab.id, 0)
+  touchEditorState(tab.id)
   return st
 }
 
@@ -201,6 +222,7 @@ function switchToTab(newTabId, oldTabId) {
     if (oldTabId && oldTabId !== newTabId) {
       editorStates.set(oldTabId, v.state)
       editorScroll.set(oldTabId, v.scrollDOM.scrollTop)
+      touchEditorState(oldTabId)
     }
     // 2. 恢复切入标签的 state（含 undo 历史 / 光标 / 选区）
     const incoming = getOrCreateState(newTab, v)
@@ -211,6 +233,7 @@ function switchToTab(newTabId, oldTabId) {
     updateCursorPos(v)
     // 保存切换后的最新 state（含大文件降级配置）
     editorStates.set(newTab.id, v.state)
+    touchEditorState(newTab.id)
   } finally {
     switchingRef = false
   }
@@ -250,13 +273,15 @@ watch(() => store.activeTabId, (newId, oldId) => {
   switchToTab(newId, oldId)
 }, { flush: 'sync' })
 
-// 标签关闭后清理对应 state/滚动缓存，释放内存
+// 标签关闭后清理对应 state/滚动缓存，释放内存（同步清理 LRU 顺序记录）
 watch(() => store.tabs.map(t => t.id), (ids) => {
   const set = new Set(ids)
   for (const id of [...editorStates.keys()]) {
     if (!set.has(id)) {
       editorStates.delete(id)
       editorScroll.delete(id)
+      const i = lruOrder.indexOf(id)
+      if (i !== -1) lruOrder.splice(i, 1)
     }
   }
 })
@@ -416,6 +441,7 @@ const onContentChange = (val) => {
   // 保证切回时恢复到最新内容（含 undo 历史 / 光标 / 选区）。
   if (editorView.value && store.activeTabId) {
     editorStates.set(store.activeTabId, editorView.value.state)
+    touchEditorState(store.activeTabId)
   }
 }
 

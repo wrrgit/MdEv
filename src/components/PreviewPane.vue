@@ -52,6 +52,20 @@ const previewContent = ref(null)
 // 始终把预览 DOM 节点数控制在可控范围，避免万行文档的整篇 DOM 卡顿。
 let previewHtmlDirty = false
 
+// ── P4：预览渲染缓存（stale-while-revalidate）──
+// 切回已渲染过的标签时同步命中缓存瞬时还原（0ms 白屏），再后台异步重渲染以吸纳外部/草稿变更。
+// 超大文件仅缓存首屏块（避免缓存随分块无限增长），其余按需加载。
+const PREVIEW_CACHE_LIMIT = 12
+const previewCache = new Map() // tabId -> html 字符串
+function cachePreview(id, html) {
+  if (!id || html == null) return
+  if (previewCache.has(id)) previewCache.delete(id)
+  previewCache.set(id, html)
+  while (previewCache.size > PREVIEW_CACHE_LIMIT) {
+    previewCache.delete(previewCache.keys().next().value)
+  }
+}
+
 // ── P3：超大文件块级渐进渲染状态 ──
 const HUGE_CHUNK_LINES = 6000 // 每块约 6000 行（拆分点取空行，且不在代码围栏内）
 const hugeChunks = ref([])      // [{ text, startLine, endLine }]
@@ -357,6 +371,8 @@ async function renderHugeChunked(mySeq) {
   await nextTick()
   if (mySeq !== renderSeq) return
   setupMermaidLazy(); rebuildOverlays(); applySearchHighlights(); setupLazyImages(); restorePreviewScroll()
+  // P4：仅缓存首屏块（超大文件分块无限增长，缓存首屏足以消除切回白屏）
+  cachePreview(store.activeTabId, previewContent.value ? previewContent.value.innerHTML : '')
 }
 
 // 加载下一块（按钮 / 滚动到底自动触发）
@@ -421,6 +437,8 @@ async function renderNow(force = false) {
       await nextTick()
       if (mySeq !== renderSeq) return
       setupMermaidLazy(); rebuildOverlays(); applySearchHighlights(); setupLazyImages(); restorePreviewScroll()
+      // P4：缓存整篇 HTML，切回该标签时瞬时还原
+      cachePreview(store.activeTabId, previewContent.value ? previewContent.value.innerHTML : '')
     }
   } finally {
     if (mySeq === renderSeq) isRendering.value = false
@@ -459,6 +477,17 @@ watch(() => store.activeTabId, () => {
   // 标记待恢复：渲染完成后把预览滚动恢复到该标签上次的位置
   pendingRestoreTabId = store.activeTabId
   recomputeTier()
+  // P4：stale-while-revalidate——命中缓存则瞬时还原上次预览（消除切标签白屏），
+  // 再后台 renderNow 异步刷新（吸纳外部/草稿变更）。无缓存则直接渲染。
+  const cached = previewCache.get(store.activeTabId)
+  if (cached != null && store.settings.viewMode !== 'edit') {
+    imageObserver?.disconnect(); imageObserver = null
+    applyPreviewHtml(cached, false)
+    previewPaused.value = false
+    hugeRendered.value = 0
+    hugeChunks.value = []
+    nextTick(() => { rebuildOverlays(); applySearchHighlights(); setupLazyImages(); restorePreviewScroll() })
+  }
   renderNow(true)
 })
 
