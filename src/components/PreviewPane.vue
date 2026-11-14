@@ -205,6 +205,7 @@ const fileTier = ref('normal')
 const isRendering = ref(false)
 const previewPaused = ref(false)
 let renderTimer = null
+let renderSeq = 0 // P2：渲染序号，仅应用最新一次结果，丢弃 Worker 返回过期的旧渲染
 let renderedContent = '' // 已渲染内容快照，用于去重（避免切标签触发的冗余重渲染）
 
 function recomputeTier() {
@@ -213,6 +214,8 @@ function recomputeTier() {
 }
 
 // 真正的渲染动作（可被防抖调度或立即调用）
+// P2：解析已移至 Web Worker（previewClient → preview.worker），主线程不再被 markdown-it 阻塞；
+// 此处用 renderSeq 守卫，确保打字连续触发时在途的旧 Worker 结果不会覆盖最新预览。
 function renderNow(force = false) {
   if (!store.activeTab) {
     renderedHtml.value = ''
@@ -232,17 +235,21 @@ function renderNow(force = false) {
     clearTimeout(renderTimer)
     renderTimer = null
   }
+  const mySeq = ++renderSeq
   isRendering.value = true
   parseMarkdown(store.content, {
     filePath: store.activeTab?.filePath,
     projectRoot: store.projectRoot
   })
     .then((html) => {
+      // 已有更新的渲染在途，丢弃本次过期结果
+      if (mySeq !== renderSeq) return
       renderedHtml.value = html
       renderedContent = store.content
     })
     .then(() => nextTick())
     .then(() => {
+      if (mySeq !== renderSeq) return
       setupMermaidLazy()
       rebuildOverlays()
       applySearchHighlights()
@@ -258,7 +265,7 @@ function renderNow(force = false) {
       }
     })
     .finally(() => {
-      isRendering.value = false
+      if (mySeq === renderSeq) isRendering.value = false
     })
 }
 
