@@ -37,7 +37,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, nextTick, onMounted } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
 import { useTabClose } from '@/composables/useTabClose'
 import ContextMenu from './ContextMenu.vue'
@@ -46,6 +46,28 @@ const store = useEditorStore()
 const { requestCloseTab } = useTabClose()
 const tabsContainer = ref(null)
 let dragTabId = null
+
+// ── 激活 tab 自动滚入可视区（左右溢出时）──
+// 打开文件/切换/关闭导致 activeTabId 变化时，确保当前文档的 tab 显示出来。
+function scrollActiveTabIntoView() {
+  const container = tabsContainer.value
+  if (!container) return
+  const activeEl = container.querySelector('.tab.active')
+  if (!activeEl) return
+  const cRect = container.getBoundingClientRect()
+  const tRect = activeEl.getBoundingClientRect()
+  if (tRect.left < cRect.left) {
+    // 激活 tab 在可视区左侧 → 向左滚动到它
+    container.scrollLeft -= (cRect.left - tRect.left)
+  } else if (tRect.right > cRect.right) {
+    // 在可视区右侧（被裁切）→ 向右滚动到它
+    container.scrollLeft += (tRect.right - cRect.right)
+  }
+}
+
+watch(() => store.activeTabId, () => nextTick(scrollActiveTabIntoView))
+watch(() => store.tabs.length, () => nextTick(scrollActiveTabIntoView))
+onMounted(() => nextTick(scrollActiveTabIntoView))
 
 // ── 右键菜单 ──
 const menuVisible = ref(false)
