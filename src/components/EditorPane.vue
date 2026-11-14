@@ -33,7 +33,7 @@ import { Codemirror } from 'vue-codemirror'
 import { useEditorStore } from '@/stores/editorStore'
 import { lockScrollSync, isScrollSyncLocked } from '@/core/scrollMapper'
 import { EditorView, keymap } from '@codemirror/view'
-import { EditorState, Compartment, StateEffect, Prec } from '@codemirror/state'
+import { EditorState, Compartment, Prec, EditorSelection } from '@codemirror/state'
 import { search } from '@codemirror/search'
 import { focusModeField, typewriterScroll } from '@/core/editor/focusTypewriter'
 import { indentWithTab, undo, redo } from '@codemirror/commands'
@@ -47,6 +47,14 @@ import { useSelectionMenu } from '@/composables/useSelectionMenu'
 const store = useEditorStore()
 const editorContainer = ref(null)
 const editorView = shallowRef(null)
+
+// ── P0：多文件状态保留 ──
+// 每个标签独立保存完整 EditorState（含 undo 历史 / 光标 / 选区）与滚动位置，
+// 切标签时通过 view.setState 恢复，避免整篇重设 doc 导致 undo/光标/滚动丢失。
+const editorStates = new Map()
+const editorScroll = new Map()
+// 切标签过程中抑制 onContentChange（防误标脏）与 onEditorScroll（防误触发滚动联动）
+let switchingRef = false
 
 // ── 选中文本右键菜单 ──
 const { menuVisible, menuX, menuY, items, open: openMenu, close, onSelect } = useSelectionMenu(store)
@@ -67,39 +75,13 @@ const onEditorReady = (payload) => {
   window.editorUndo = () => { undo(v); v.focus() }
   window.editorRedo = () => { redo(v); v.focus() }
   updateCursorPos(v)
-  // vue-codemirror 创建 EditorView 时会注入默认 basicSetup，并通过 appendConfig 应用我们传入的 :extensions，
-  // 因此 wordWrapCompartment 在此通过 appendConfig 注册（compartment 初始状态需动态设置），并立即套用当前换行设置。
-  v.dispatch({
-    effects: StateEffect.appendConfig.of([
-      wordWrapCompartment.of(store.settings.wordWrap ? EditorView.lineWrapping : []),
-      // 专注模式（淡化非当前段落）/ 打字机模式（光标行居中），compartment 动态开关
-      focusCompartment.of(store.settings.focusMode ? focusModeField : []),
-      typewriterCompartment.of(store.settings.typewriterMode ? typewriterScroll : []),
-      // Typora 式 Markdown 键位（最高优先级，先于 basicSetup 的默认键位）
-      Prec.highest(keymap.of([
-        { key: 'Mod-b', run: (view) => toggleWrap(view, '**') },
-        { key: 'Mod-i', run: (view) => toggleWrap(view, '*') },
-        { key: 'Mod-Shift-`', run: (view) => toggleWrap(view, '`') },
-        { key: 'Alt-Shift-5', run: (view) => toggleWrap(view, '~~') },
-        { key: 'Mod-k', run: insertLink },
-        { key: 'Mod-Shift-K', run: insertCodeBlock },
-        { key: 'Shift-Alt-f', run: formatTableAtCursor },
-        { key: 'Mod-1', run: (view) => setHeading(view, 1) },
-        { key: 'Mod-2', run: (view) => setHeading(view, 2) },
-        { key: 'Mod-3', run: (view) => setHeading(view, 3) },
-        { key: 'Mod-4', run: (view) => setHeading(view, 4) },
-        { key: 'Mod-5', run: (view) => setHeading(view, 5) },
-        { key: 'Mod-6', run: (view) => setHeading(view, 6) },
-        { key: 'Mod-0', run: (view) => setHeading(view, 0) },
-        { key: 'Enter', run: smartEnter },
-        { key: 'Shift-Enter', run: (view) => { view.dispatch(view.state.replaceSelection('\n')); return true } },
-        { key: 'Tab', run: smartTab },
-        { key: 'Shift-Tab', run: smartShiftTab }
-      ])),
-      // 剪贴板图片粘贴（截图 → assets 目录 → 插入相对路径引用）
-      EditorView.domEventHandlers({ paste: handlePaste })
-    ])
-  })
+  // P0：初始标签的 EditorState 直接捕获（basicSetup + 全部扩展已随 vue-codemirror 注入）。
+  // 后续切标签通过 editorStates 中保存的 state 调用 view.setState 恢复，避免整篇重设 doc 丢失
+  // undo 历史 / 光标 / 选区 / 滚动。
+  if (store.activeTabId) {
+    editorStates.set(store.activeTabId, v.state)
+    editorScroll.set(store.activeTabId, 0)
+  }
   // 源码行映射滚动同步：监听编辑器滚动
   v.scrollDOM.addEventListener('scroll', onEditorScroll, { passive: true })
 }
@@ -112,6 +94,7 @@ const onEditorUpdate = (payload) => {
 let editorScrollRaf = false
 
 function onEditorScroll() {
+  if (switchingRef) return
   if (editorScrollRaf) return
   editorScrollRaf = true
   requestAnimationFrame(() => {
@@ -188,6 +171,73 @@ watch(() => store.scrollSyncSource, (val) => {
   const v = editorView.value
   if (!v || store.settings.viewMode === 'preview') return
   scrollEditorToLine(v, val.line, val.atBottom)
+})
+
+// ── P0：多文件状态保留（切标签瞬时恢复 undo/光标/选区/滚动）──
+function getOrCreateState(tab, view) {
+  let st = editorStates.get(tab.id)
+  if (st) return st
+  // 从当前 view 的 extensions 派生（保留 basicSetup + 全部扩展），仅替换 doc 与初始光标
+  st = view.state.update({
+    doc: tab.content,
+    selection: EditorSelection.cursor(0)
+  })
+  editorStates.set(tab.id, st)
+  editorScroll.set(tab.id, 0)
+  return st
+}
+
+function switchToTab(newTabId, oldTabId) {
+  const v = editorView.value
+  if (!v || !newTabId) return
+  const newTab = store.tabs.find(t => t.id === newTabId)
+  if (!newTab) return
+
+  switchingRef = true
+  try {
+    // 1. 保存切出标签的 state + 滚动
+    if (oldTabId && oldTabId !== newTabId) {
+      editorStates.set(oldTabId, v.state)
+      editorScroll.set(oldTabId, v.scrollDOM.scrollTop)
+    }
+    // 2. 恢复切入标签的 state（含 undo 历史 / 光标 / 选区）
+    const incoming = getOrCreateState(newTab, v)
+    if (v.state !== incoming) v.setState(incoming)
+    // 3. 刷新状态栏光标/选区信息
+    updateCursorPos(v)
+  } finally {
+    switchingRef = false
+  }
+  // 4. 恢复滚动 + 聚焦（双 rAF 击败 focus 自动滚动光标入视口，确保滚动位置原样恢复）
+  const top = editorScroll.get(newTabId) || 0
+  requestAnimationFrame(() => {
+    const vv = editorView.value
+    if (!vv) return
+    vv.scrollDOM.scrollTop = top
+    vv.focus()
+    vv.requestMeasure()
+    requestAnimationFrame(() => {
+      if (editorView.value === vv) vv.scrollDOM.scrollTop = top
+    })
+  })
+}
+
+// activeTabId 变化即切换：用 flush:'sync' 保证在 vue-codemirror 的 modelValue 监听器之前保存旧 state，
+// 避免其整篇重设 doc 导致旧标签历史/光标/滚动丢失。
+watch(() => store.activeTabId, (newId, oldId) => {
+  if (!editorView.value) return
+  switchToTab(newId, oldId)
+}, { flush: 'sync' })
+
+// 标签关闭后清理对应 state/滚动缓存，释放内存
+watch(() => store.tabs.map(t => t.id), (ids) => {
+  const set = new Set(ids)
+  for (const id of [...editorStates.keys()]) {
+    if (!set.has(id)) {
+      editorStates.delete(id)
+      editorScroll.delete(id)
+    }
+  }
 })
 
 function updateCursorPos(view) {
@@ -339,7 +389,13 @@ function handlePaste(event, view) {
 }
 
 const onContentChange = (val) => {
+  if (switchingRef) return
   store.content = val
+  // P0：持续把当前标签的最新 state 缓存（覆盖外部 setDoc 等场景，如历史快照恢复），
+  // 保证切回时恢复到最新内容（含 undo 历史 / 光标 / 选区）。
+  if (editorView.value && store.activeTabId) {
+    editorStates.set(store.activeTabId, editorView.value.state)
+  }
 }
 
 const isDark = computed(() => {
@@ -404,16 +460,43 @@ const baseExtensions = [
   ])
 ]
 
-// 自动换行通过 compartment 控制：onEditorReady 时 appendConfig 注册，
-// 切换时 reconfigure，不重建编辑器（光标/历史/滚动保留）。
+// 自动换行 / 专注 / 打字机 通过 compartment 控制，初始配置在此声明；切换时 reconfigure，不重建编辑器。
+// 注意：vue-codemirror 会在 basicSetup 之后 appendConfig 注入下方 extensions（等价于原 onEditorReady 里的 appendConfig）。
 const wordWrapCompartment = new Compartment()
 const focusCompartment = new Compartment()
 const typewriterCompartment = new Compartment()
 
-const cmExtensions = computed(() => {
-  const exts = [...baseExtensions]
-
-  exts.push(EditorView.theme({
+// P0：完整扩展列表（basicSetup 由 vue-codemirror 默认注入，此处为额外扩展）。
+// 所有标签共享同一套扩展；切标签时通过 view.setState 恢复各标签独立 state（含 undo 历史 / 光标 / 选区 / 滚动）。
+const extensions = [
+  ...baseExtensions,
+  wordWrapCompartment.of(store.settings.wordWrap ? EditorView.lineWrapping : []),
+  focusCompartment.of(store.settings.focusMode ? focusModeField : []),
+  typewriterCompartment.of(store.settings.typewriterMode ? typewriterScroll : []),
+  // Typora 式 Markdown 键位（最高优先级，先于 basicSetup 的默认键位）
+  Prec.highest(keymap.of([
+    { key: 'Mod-b', run: (view) => toggleWrap(view, '**') },
+    { key: 'Mod-i', run: (view) => toggleWrap(view, '*') },
+    { key: 'Mod-Shift-`', run: (view) => toggleWrap(view, '`') },
+    { key: 'Alt-Shift-5', run: (view) => toggleWrap(view, '~~') },
+    { key: 'Mod-k', run: insertLink },
+    { key: 'Mod-Shift-K', run: insertCodeBlock },
+    { key: 'Shift-Alt-f', run: formatTableAtCursor },
+    { key: 'Mod-1', run: (view) => setHeading(view, 1) },
+    { key: 'Mod-2', run: (view) => setHeading(view, 2) },
+    { key: 'Mod-3', run: (view) => setHeading(view, 3) },
+    { key: 'Mod-4', run: (view) => setHeading(view, 4) },
+    { key: 'Mod-5', run: (view) => setHeading(view, 5) },
+    { key: 'Mod-6', run: (view) => setHeading(view, 6) },
+    { key: 'Mod-0', run: (view) => setHeading(view, 0) },
+    { key: 'Enter', run: smartEnter },
+    { key: 'Shift-Enter', run: (view) => { view.dispatch(view.state.replaceSelection('\n')); return true } },
+    { key: 'Tab', run: smartTab },
+    { key: 'Shift-Tab', run: smartShiftTab }
+  ])),
+  // 剪贴板图片粘贴（截图 → assets 目录 → 插入相对路径引用）
+  EditorView.domEventHandlers({ paste: handlePaste }),
+  EditorView.theme({
     '&': { backgroundColor: 'var(--bg-editor)' },
     '.cm-scroller': { fontFamily: 'var(--editor-font-family)' },
     '.cm-gutters': { backgroundColor: 'var(--bg-gutter)', borderColor: 'var(--border-color)' },
@@ -423,12 +506,8 @@ const cmExtensions = computed(() => {
     '&.cm-focused .cm-selectionBackground': { backgroundColor: 'var(--selection-bg) !important' },
     '.cm-cursor': { borderLeftColor: 'var(--text-primary)' },
     '.cm-foldPlaceholder': { backgroundColor: 'var(--hover-bg)', color: 'var(--text-muted)' }
-  }))
-
-  return exts
-})
-
-const extensions = computed(() => cmExtensions.value)
+  })
+]
 
 // 切换自动换行：通过 compartment.reconfigure 即时切换，不重建编辑器
 watch(() => store.settings.wordWrap, (val) => {

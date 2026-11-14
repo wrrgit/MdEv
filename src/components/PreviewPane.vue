@@ -37,6 +37,12 @@ const previewScroll = ref(null)
 const previewContent = ref(null)
 const renderedHtml = ref('')
 
+// ── P0：预览滚动位置按标签保留，切回时恢复（替代原先切标签强制归零）──
+const previewScrollMap = new Map()
+let pendingRestoreTabId = null
+// 恢复滚动期间抑制 onPreviewScroll 的滚动联动推送（避免把恢复的滚动同步回编辑器）
+let restoringPreview = false
+
 // ── 选中文本右键菜单 ──
 const { menuVisible, menuX, menuY, items, open: openMenu, close, onSelect } = useSelectionMenu(store)
 
@@ -226,6 +232,16 @@ function renderNow(force = false) {
       setupMermaidLazy()
       rebuildOverlays()
       applySearchHighlights()
+      // P0：切标签渲染完成后，把预览滚动恢复到该标签上次的位置（无记录则归零）
+      if (pendingRestoreTabId === store.activeTabId) {
+        const el = previewScroll.value
+        if (el) {
+          restoringPreview = true
+          el.scrollTop = previewScrollMap.get(pendingRestoreTabId) ?? 0
+          requestAnimationFrame(() => { restoringPreview = false })
+        }
+        pendingRestoreTabId = null
+      }
     })
     .finally(() => {
       isRendering.value = false
@@ -261,6 +277,8 @@ watch(() => store.content, scheduleRender)
 
 // 切换标签 → 立即按当前分级渲染（保证打开即见内容）
 watch(() => store.activeTabId, () => {
+  // 标记待恢复：渲染完成后把预览滚动恢复到该标签上次的位置
+  pendingRestoreTabId = store.activeTabId
   recomputeTier()
   renderNow(true)
 })
@@ -340,17 +358,20 @@ watch(() => store.scrollSyncSource, (val) => {
 
 watch(() => store.activeTabId, () => {
   nextTick(() => {
-    if (previewScroll.value) previewScroll.value.scrollTop = 0
     rebuildOverlays()
   })
 })
 
 function onPreviewScroll() {
+  if (restoringPreview) return
   if (scrollRafPending) return
   scrollRafPending = true
   requestAnimationFrame(() => {
     scrollRafPending = false
     const el = previewScroll.value
+    if (!el) return
+    // P0：持续记录当前标签滚动位置，切回时恢复
+    previewScrollMap.set(store.activeTabId, el.scrollTop)
     let cache = anchorCache
     // 自愈：锚点缓存缺失（如启动时序、隐藏期间重建）导致联动失效时，现场重建一次
     if ((!cache || cache.anchors.length === 0) && el) {
