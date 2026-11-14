@@ -37,6 +37,12 @@ export function useAutoSave() {
     const tab = store.activeTab
     if (!tab) return { success: false }
 
+    // 大文件截断只读模式：主进程仅读取了前 N MB，禁止保存，避免写回破坏原文件的其余部分
+    if (tab.truncated) {
+      saveStatus.value = 'readonly'
+      return { success: false, readonly: true }
+    }
+
     saveStatus.value = 'saving'
 
     if (tab.filePath) {

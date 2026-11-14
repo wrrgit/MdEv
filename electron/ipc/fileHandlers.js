@@ -4,13 +4,35 @@ import { existsSync } from 'fs'
 import { app } from 'electron'
 import { snapshotFile } from './historyHandlers.js'
 
+// ── 大文件读取守卫阈值 ──
+// 20MB 以上：标记 isLarge，渲染端打开前弹确认（仅编辑模式打开 / 取消）。
+// 150MB 以上：整篇读取会撑爆内存，仅读取前 20MB 并标记 truncated（渲染端只读、禁止保存）。
+const LARGE_FILE_THRESHOLD = 20 * 1024 * 1024
+const FULL_READ_CAP = 150 * 1024 * 1024
+const PARTIAL_READ = 20 * 1024 * 1024
+
 const watchedDirs = new Map()
 
 export function registerFileHandlers(ipcMain, mainWindow) {
   ipcMain.handle('file:read', async (_, filePath) => {
     try {
-      const content = await readFile(filePath, 'utf-8')
-      return { success: true, content }
+      // 先 stat 取体积，做大文件守卫：超过阈值标记 isLarge（渲染端打开前弹确认）；
+      // 超过整读上限则只读取前 PARTIAL_READ 字节并标记 truncated（渲染端只读，禁止保存以免破坏文件）。
+      const st = await stat(filePath)
+      const size = st.size
+      const isLarge = size > LARGE_FILE_THRESHOLD
+      let content
+      let truncated = false
+      let truncatedBytes = size
+      if (size > FULL_READ_CAP) {
+        const buf = await readFile(filePath, { encoding: 'utf-8', start: 0, end: PARTIAL_READ })
+        content = buf
+        truncated = true
+        truncatedBytes = PARTIAL_READ
+      } else {
+        content = await readFile(filePath, 'utf-8')
+      }
+      return { success: true, content, size, isLarge, truncated, truncatedBytes }
     } catch (err) {
       return { success: false, error: err.message }
     }

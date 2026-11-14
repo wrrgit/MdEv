@@ -37,6 +37,14 @@
       @close="store.showCommandPalette = false"
     />
     <FileHistoryDialog />
+    <LargeFileConfirmModal
+      :visible="showLargeConfirm"
+      :file-name="pendingFile?.fileName"
+      :size-text="largeFileSizeText"
+      :truncated-text="truncatedText"
+      @confirm="confirmLargeOpen"
+      @cancel="cancelLargeOpen"
+    />
   </div>
 </template>
 
@@ -59,6 +67,8 @@ import ExportDialog from '@/components/ExportDialog.vue'
 import QuickOpen from '@/components/QuickOpen.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import FileHistoryDialog from '@/components/FileHistoryDialog.vue'
+import LargeFileConfirmModal from '@/components/LargeFileConfirmModal.vue'
+import { useOpenFile } from '@/composables/useOpenFile'
 import { toggleWrap, setHeading, insertLink, insertCodeBlock } from '@/core/markdown/editing'
 import { formatTableAtCursor } from '@/core/markdown/tableFormat'
 
@@ -71,6 +81,17 @@ const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'a
 const store = useEditorStore()
 const previewRef = ref(null)
 const appContainer = ref(null)
+
+// 大文件打开守卫（确认弹窗 + 统一打开入口）
+const {
+  openFile,
+  confirmLargeOpen,
+  cancelLargeOpen,
+  showLargeConfirm,
+  pendingFile,
+  largeFileSizeText,
+  truncatedText
+} = useOpenFile()
 
 const splitRatio = ref(0.5)
 
@@ -288,11 +309,7 @@ async function onDropApp(e) {
     const ext = filePath.toLowerCase().match(/\.([^.]+)$/)?.[1] || ''
     if (!TEXT_EXTS.includes(ext) || IMAGE_EXTS.includes(ext)) continue
     try {
-      const result = await window.api.readFile(filePath)
-      if (result?.success) {
-        store.addTab(filePath, result.content, filePath.split(/[\\/]/).pop())
-        store.addRecentFile(filePath)
-      }
+      await openFile(filePath)
     } catch {}
   }
 }
@@ -328,11 +345,7 @@ async function openFileByDialog() {
     await window.api.openPath(filePath)
     return
   }
-  const result = await window.api.readFile(filePath)
-  if (result?.success) {
-    store.addTab(filePath, result.content, filePath.split(/[\\/]/).pop())
-    store.addRecentFile(filePath)
-  }
+  await openFile(filePath)
 }
 
 async function openFolderByDialog() {
@@ -451,13 +464,7 @@ onMounted(async () => {
         const ext = lastFile.toLowerCase().match(/\.([^.]+)$/)?.[1] || ''
         const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'avif']
         if (!imageExts.includes(ext)) {
-          const result = await window.api?.readFile(lastFile)
-          if (result?.success) {
-            const fileName = lastFile.split(/[\\/]/).pop()
-            store.addTab(lastFile, result.content, fileName)
-            // 兜底打开的文件同样刷新最近记录（更新 lastOpened 并置顶）
-            store.addRecentFile(lastFile)
-          }
+          await openFile(lastFile)
         }
       } catch {}
     }
@@ -467,11 +474,7 @@ onMounted(async () => {
   // ── 通过 .md 文件关联 / 第二实例传入的文档 ──
   window.api?.onOpenFile?.(async (filePath) => {
     try {
-      const result = await window.api.readFile(filePath)
-      if (result?.success) {
-        store.addTab(filePath, result.content, filePath.split(/[\\/]/).pop())
-        store.addRecentFile(filePath)
-      }
+      await openFile(filePath)
     } catch {}
   })
 
@@ -488,12 +491,7 @@ onMounted(async () => {
           await window.api.openPath(filePath)
           return
         }
-        const result = await window.api.readFile(filePath)
-        if (result?.success) {
-          const fileName = filePath.split(/[\\/]/).pop()
-          store.addTab(filePath, result.content, fileName)
-          store.addRecentFile(filePath)
-        }
+        await openFile(filePath)
       }
     })
     window.api.onMenuEvent('menu:open-folder', async () => {

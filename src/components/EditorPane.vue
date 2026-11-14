@@ -9,7 +9,7 @@
       :extensions="extensions"
       :style="{ height: '100%', fontSize: store.settings.editorFontSize + 'px' }"
       :autofocus="true"
-      :disabled="false"
+      :disabled="!!store.activeTab?.truncated"
       :indent-with-tab="true"
       :tab-size="store.settings.tabSize"
       @ready="onEditorReady"
@@ -82,6 +82,8 @@ const onEditorReady = (payload) => {
     editorStates.set(store.activeTabId, v.state)
     editorScroll.set(store.activeTabId, 0)
   }
+  // P1：初始标签若为大文件，关闭高亮/换行/专注，避免巨量 tokenize 卡顿
+  applyLargeFileMode(v, store.activeTab?.isLargeFile)
   // 源码行映射滚动同步：监听编辑器滚动
   v.scrollDOM.addEventListener('scroll', onEditorScroll, { passive: true })
 }
@@ -203,8 +205,12 @@ function switchToTab(newTabId, oldTabId) {
     // 2. 恢复切入标签的 state（含 undo 历史 / 光标 / 选区）
     const incoming = getOrCreateState(newTab, v)
     if (v.state !== incoming) v.setState(incoming)
+    // P1：按当前标签是否大文件，切换高亮/换行/专注（大文件关，避免 tokenize 卡顿）
+    applyLargeFileMode(v, newTab.isLargeFile)
     // 3. 刷新状态栏光标/选区信息
     updateCursorPos(v)
+    // 保存切换后的最新 state（含大文件降级配置）
+    editorStates.set(newTab.id, v.state)
   } finally {
     switchingRef = false
   }
@@ -219,6 +225,21 @@ function switchToTab(newTabId, oldTabId) {
     requestAnimationFrame(() => {
       if (editorView.value === vv) vv.scrollDOM.scrollTop = top
     })
+  })
+}
+
+// ── P1：大文件模式 ──
+// 大文件下关闭语法高亮 / 自动换行 / 专注 decoration（basicSetup 的折叠保持开启，因其为惰性按需计算，
+// 对巨文档几乎零开销），避免巨量 tokenize / O(N) decoration 造成打开与编辑卡顿。
+function applyLargeFileMode(v, isLarge) {
+  if (!v) return
+  const large = !!isLarge
+  v.dispatch({
+    effects: [
+      languageCompartment.reconfigure(large ? [] : markdownExt),
+      wordWrapCompartment.reconfigure((!large && store.settings.wordWrap) ? EditorView.lineWrapping : []),
+      focusCompartment.reconfigure((!large && store.settings.focusMode) ? focusModeField : [])
+    ]
   })
 }
 
@@ -407,8 +428,8 @@ const isDark = computed(() => {
 // 注意：vue-codemirror 默认已注入 basicSetup（行号/历史/默认键位/括号匹配/激活行/自动补全等），
 // 这里只补充 basicSetup 之外的扩展，避免重复注册（否则会出现双行号栏等异常）。
 const baseExtensions = [
-  // Markdown 语法高亮（basicSetup 不含语言）
-  markdown({ base: markdownLanguage }),
+  // Markdown 语法高亮（basicSetup 不含语言）；大文件模式下由 languageCompartment 关闭
+  languageCompartment.of(markdownExt),
   // 搜索高亮扩展：setSearchQuery 即可高亮全文件匹配（不依赖搜索面板是否打开）
   search(),
   // 通用 Tab 缩进：必须包成 keymap.of([...]) 才是合法扩展；
@@ -465,6 +486,9 @@ const baseExtensions = [
 const wordWrapCompartment = new Compartment()
 const focusCompartment = new Compartment()
 const typewriterCompartment = new Compartment()
+// 语言（Markdown 高亮）：大文件模式下 reconfigure 为 [] 关闭高亮，避免巨量 tokenize 卡顿
+const languageCompartment = new Compartment()
+const markdownExt = markdown({ base: markdownLanguage })
 
 // P0：完整扩展列表（basicSetup 由 vue-codemirror 默认注入，此处为额外扩展）。
 // 所有标签共享同一套扩展；切标签时通过 view.setState 恢复各标签独立 state（含 undo 历史 / 光标 / 选区 / 滚动）。
@@ -513,6 +537,8 @@ const extensions = [
 watch(() => store.settings.wordWrap, (val) => {
   const v = editorView.value
   if (!v) return
+  // P1：大文件模式下强制关闭换行（降级），不被全局设置覆盖
+  if (store.activeTab?.isLargeFile) return
   v.dispatch({
     effects: wordWrapCompartment.reconfigure(val ? EditorView.lineWrapping : [])
   })
@@ -522,6 +548,8 @@ watch(() => store.settings.wordWrap, (val) => {
 watch(() => store.settings.focusMode, (val) => {
   const v = editorView.value
   if (!v) return
+  // P1：大文件模式下强制关闭专注 decoration（降级）
+  if (store.activeTab?.isLargeFile) return
   v.dispatch({
     effects: focusCompartment.reconfigure(val ? focusModeField : [])
   })

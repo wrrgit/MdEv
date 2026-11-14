@@ -11,6 +11,10 @@
     </div>
     <!-- 渲染中指示（大文件重渲染期间）-->
     <div v-if="isRendering" class="preview-rendering">渲染中…</div>
+    <!-- 超大文件截断只读提示（主进程仅读取前 N MB，编辑已禁用以免写回破坏原文件）-->
+    <div v-if="activeTabTruncated" class="preview-banner preview-banner-warn">
+      <span class="preview-banner-text">文件过大（{{ truncatedLabel }}），预览为部分内容，编辑已禁用</span>
+    </div>
     <!-- 选中文本右键菜单：复制 / 文内搜索 / 在打开的文件中搜索 -->
     <ContextMenu
       :visible="menuVisible"
@@ -24,18 +28,28 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
 import { parseMarkdown } from '@/core/markdown/parser'
-import { classifyContent } from '@/core/perf'
+import { classifyContent, formatBytes } from '@/core/perf'
 import { buildAnchors, yToLine, lineToY, currentHeadingLine, lockScrollSync, isScrollSyncLocked } from '@/core/scrollMapper'
 import ContextMenu from './ContextMenu.vue'
 import { useSelectionMenu } from '@/composables/useSelectionMenu'
+import { useOpenFile } from '@/composables/useOpenFile'
 
 const store = useEditorStore()
+const { openFile } = useOpenFile()
 const previewScroll = ref(null)
 const previewContent = ref(null)
 const renderedHtml = ref('')
+
+// ── P1：超大文件截断只读提示 ──
+const activeTabTruncated = computed(() => !!store.activeTab?.truncated)
+const truncatedLabel = computed(() => {
+  const t = store.activeTab
+  if (!t?.truncated || !t.truncatedBytes) return '部分内容'
+  return formatBytes(t.truncatedBytes)
+})
 
 // ── P0：预览滚动位置按标签保留，切回时恢复（替代原先切标签强制归零）──
 const previewScrollMap = new Map()
@@ -455,17 +469,13 @@ async function onPreviewClick(e) {
 async function openLocalFile(filePath) {
   const ext = filePath.toLowerCase().match(/\.([^.]+)$/)?.[1] || ''
 
-  // 文本类文件：在编辑器新标签打开
+  // 文本类文件：复用统一打开入口（含大文件守卫 / 只读标记 / 最近记录）
   const editableExts = ['md', 'markdown', 'mdown', 'mdx', 'json', 'js', 'ts', 'jsx', 'tsx',
     'css', 'scss', 'less', 'html', 'htm', 'xml', 'yaml', 'yml', 'toml', 'ini', 'txt', 'csv',
     'py', 'java', 'c', 'cpp', 'h', 'go', 'rs', 'rb', 'php', 'sh', 'bash', 'sql', 'lua', 'kt', 'dart']
   if (editableExts.includes(ext)) {
-    const result = await window.api?.readFile(filePath)
-    if (result?.success) {
-      const fileName = filePath.split(/[\\/]/).pop()
-      store.addTab(filePath, result.content, fileName)
-      store.addRecentFile(filePath)
-    }
+    // 预览区点击链接属于二级打开，跳过确认弹窗直接打开
+    await openFile(filePath, { showConfirm: false })
   } else {
     // 图片/其他文件：用系统默认程序打开
     await window.api?.openPath(filePath)
@@ -566,6 +576,10 @@ function setupMermaidLazy() {
   white-space: nowrap;
 }
 .preview-banner-btn:hover { background: rgba(255, 255, 255, 0.24); }
+.preview-banner-warn {
+  background: #e67e22;
+}
+.preview-banner-warn:hover { background: #e67e22; }
 .preview-rendering {
   position: absolute;
   right: 12px;
