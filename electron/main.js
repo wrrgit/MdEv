@@ -129,6 +129,12 @@ async function createWindow() {
   mainWindow.on('move', saveWindowBounds)
   mainWindow.on('closed', () => {
     mainWindow = null
+    // 主窗口已关闭：强制销毁所有残留子窗口（含 export:pdf 的离屏 show:false 窗口、
+    // 表格/输入/表单对话框）。否则 window-all-closed 永不触发，进程驻留，
+    // 且单实例锁会让后续双击 exe 表现为"无反应"（现象：MdEv 关闭不掉）。
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed()) w.destroy()
+    }
   })
 
   // 首次渲染完成后打开通过文件关联传入的文档

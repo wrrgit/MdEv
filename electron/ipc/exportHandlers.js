@@ -292,6 +292,11 @@ export function registerExportHandlers(ipcMain, mainWindow) {
         finish(reject, new Error(`Failed to load: ${errorDescription}`))
       })
 
+      // 离屏窗口被销毁（如主窗口关闭触发的统一清理）时立即 reject，避免 Promise 悬挂
+      exportWindow.once('closed', () => {
+        finish(reject, new Error('Export window closed before completion'))
+      })
+
       exportWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
     })
   }
