@@ -2,10 +2,15 @@
   <div class="preview-pane" v-show="store.tabs.length > 0 && store.settings.viewMode !== 'edit'"
     @contextmenu.prevent="onPreviewContextMenu">
     <div class="preview-scroll" ref="previewScroll" @scroll="onPreviewScroll">
-      <div class="markdown-body" :class="{ 'word-wrap-enabled': store.settings.wordWrap }" v-html="renderedHtml" ref="previewContent" @click="onPreviewClick"></div>
+      <div class="markdown-body" :class="{ 'word-wrap-enabled': store.settings.wordWrap }" ref="previewContent" @click="onPreviewClick"></div>
     </div>
-    <!-- 超大文件：自动刷新已暂停，编辑不影响编辑器流畅度，需手动刷新预览 -->
-    <div v-if="previewPaused" class="preview-banner">
+    <!-- 超大文件（P3 块级渐进渲染）：已显示部分内容，其余按需加载 -->
+    <div v-if="hugeHasMore" class="preview-banner">
+      <span class="preview-banner-text">超大文件预览：已显示前 {{ hugeShownLines }} 行（共 {{ hugeTotalLines }} 行），其余按需加载</span>
+      <button class="preview-banner-btn" :disabled="hugeAutoLoading" @click="loadNextChunk">加载更多</button>
+    </div>
+    <!-- 超大文件：编辑中自动刷新已暂停，可手动刷新预览 -->
+    <div v-else-if="previewPaused" class="preview-banner">
       <span class="preview-banner-text">超大文件：预览已暂停自动刷新（编辑流畅，预览按需更新）</span>
       <button class="preview-banner-btn" @click="refreshPreview(true)">刷新预览 (Ctrl+Shift+R)</button>
     </div>
@@ -41,7 +46,20 @@ const store = useEditorStore()
 const { openFile } = useOpenFile()
 const previewScroll = ref(null)
 const previewContent = ref(null)
-const renderedHtml = ref('')
+
+// ── P3：预览 DOM 改为手动管理（v-html 已移除）──
+// 正常/大文件：整篇 innerHTML 替换；超大文件：分块渐进渲染（首屏块 + 按需加载后续块），
+// 始终把预览 DOM 节点数控制在可控范围，避免万行文档的整篇 DOM 卡顿。
+let previewHtmlDirty = false
+
+// ── P3：超大文件块级渐进渲染状态 ──
+const HUGE_CHUNK_LINES = 6000 // 每块约 6000 行（拆分点取空行，且不在代码围栏内）
+const hugeChunks = ref([])      // [{ text, startLine, endLine }]
+const hugeRendered = ref(0)     // 已渲染块数
+const hugeAutoLoading = ref(false)
+const hugeHasMore = computed(() => fileTier.value === 'huge' && hugeRendered.value > 0 && hugeRendered.value < hugeChunks.value.length)
+const hugeShownLines = computed(() => hugeRendered.value > 0 ? hugeChunks.value[hugeRendered.value - 1].endLine : 0)
+const hugeTotalLines = computed(() => hugeChunks.value.length ? hugeChunks.value[hugeChunks.value.length - 1].endLine : 0)
 
 // ── P1：超大文件截断只读提示 ──
 const activeTabTruncated = computed(() => !!store.activeTab?.truncated)
@@ -213,60 +231,200 @@ function recomputeTier() {
   fileTier.value = classifyContent(c).tier
 }
 
+// ── P3：预览 DOM 赋值（v-html 已移除，改为手动管理以支持超大文件分块追加）──
+// append 模式用 insertAdjacentHTML('beforeend') 而非 innerHTML +=，
+// 避免每次追加都把已渲染的上万节点整段序列化再反序列化（O(N²) 卡顿）。
+function applyPreviewHtml(html, append = false) {
+  const el = previewContent.value
+  if (!el) return
+  if (append) el.insertAdjacentHTML('beforeend', html)
+  else el.innerHTML = html
+}
+
+// ── P3：图片懒加载（data-src + IntersectionObserver 视口门控）──
+// 大文档含大量图片时，不在视口内的图片延后到靠近视口才真正加载，
+// 降低首屏解码/内存峰值（外部 http(s) 与本地 mdimg:// 图片均受益）。
+let imageObserver = null
+function observeImage(img) {
+  if (!imageObserver) {
+    const root = previewScroll.value
+    imageObserver = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue
+        const im = e.target
+        const src = im.dataset.src
+        if (src) {
+          im.src = src
+          delete im.dataset.src
+        }
+        im.classList.remove('lazy-img')
+        imageObserver.unobserve(im)
+      }
+    }, { root, rootMargin: '400px' })
+  }
+  imageObserver.observe(img)
+}
+function setupLazyImages() {
+  const el = previewContent.value
+  if (!el) return
+  const scroller = previewScroll.value
+  const sr = scroller ? scroller.getBoundingClientRect() : { top: -1e9, bottom: 1e9 }
+  const imgs = el.querySelectorAll('img:not([data-lazy-handled])')
+  imgs.forEach((img) => {
+    img.dataset.lazyHandled = '1'
+    const src = img.getAttribute('src')
+    if (!src) return
+    const r = img.getBoundingClientRect()
+    const inView = r.bottom > sr.top - 200 && r.top < sr.bottom + 200
+    if (inView) return // 视口内或很近：保持立即加载
+    img.dataset.src = src
+    img.removeAttribute('src')
+    img.classList.add('lazy-img')
+    observeImage(img)
+  })
+}
+
+// ── P3：超大文件分块（在空行处切分，且绝不在代码围栏内部切分）──
+function splitIntoChunks(content, targetLines) {
+  const lines = content.split('\n')
+  const chunks = []
+  let inFence = false
+  let buf = []
+  let bufStart = 1
+  let lineNo = 1
+  const flush = (endLine) => {
+    if (buf.length === 0) return
+    chunks.push({ text: buf.join('\n'), startLine: bufStart, endLine })
+    buf = []
+  }
+  for (let i = 0; i < lines.length; i++, lineNo++) {
+    const line = lines[i]
+    // 跟踪围栏状态：围栏内的空行不能作为切分点
+    if (/^\s*(```|~~~)/.test(line)) inFence = !inFence
+    if (!inFence && line.trim() === '' && buf.length >= targetLines) {
+      flush(lineNo - 1)
+      bufStart = lineNo // 空行作为下一块起点
+      buf = []
+      continue
+    }
+    if (buf.length === 0) bufStart = lineNo
+    buf.push(line)
+  }
+  flush(lineNo - 1)
+  if (chunks.length === 0 && content.length > 0) {
+    chunks.push({ text: content, startLine: 1, endLine: lines.length })
+  }
+  return chunks
+}
+
+let hugeChunksCache = { key: null, chunks: [] }
+function getHugeChunks(content) {
+  if (hugeChunksCache.key === content) return hugeChunksCache.chunks
+  const chunks = splitIntoChunks(content, HUGE_CHUNK_LINES)
+  hugeChunksCache = { key: content, chunks }
+  return chunks
+}
+
+// 为块还原原始行号（markdown-it token.map 基于解析输入的起始行），避免分块后行号错位
+function padChunkLines(chunk) {
+  return '\n'.repeat(Math.max(0, chunk.startLine - 1)) + chunk.text
+}
+
+function restorePreviewScroll() {
+  if (pendingRestoreTabId === store.activeTabId) {
+    const el = previewScroll.value
+    if (el) {
+      restoringPreview = true
+      el.scrollTop = previewScrollMap.get(pendingRestoreTabId) ?? 0
+      requestAnimationFrame(() => { restoringPreview = false })
+    }
+    pendingRestoreTabId = null
+  }
+}
+
+// ── P3：超大文件块级渐进渲染（仅首屏块先渲染，其余按需加载）──
+async function renderHugeChunked(mySeq) {
+  const ctx = { filePath: store.activeTab?.filePath, projectRoot: store.projectRoot }
+  const chunks = getHugeChunks(store.content)
+  hugeChunks.value = chunks
+  hugeRendered.value = 0
+  if (chunks.length === 0) { applyPreviewHtml('', false); return }
+  hugeRendered.value = 1
+  const html0 = await parseMarkdown(padChunkLines(chunks[0]), ctx)
+  if (mySeq !== renderSeq) return
+  imageObserver?.disconnect(); imageObserver = null
+  applyPreviewHtml(html0, false)
+  await nextTick()
+  if (mySeq !== renderSeq) return
+  setupMermaidLazy(); rebuildOverlays(); applySearchHighlights(); setupLazyImages(); restorePreviewScroll()
+}
+
+// 加载下一块（按钮 / 滚动到底自动触发）
+async function loadNextChunk() {
+  if (hugeAutoLoading.value) return
+  if (hugeRendered.value >= hugeChunks.value.length) return
+  const seq = renderSeq // 渲染期间若发生切标签，本次追加作废
+  hugeAutoLoading.value = true
+  try {
+    const ctx = { filePath: store.activeTab?.filePath, projectRoot: store.projectRoot }
+    const chunk = hugeChunks.value[hugeRendered.value]
+    const html = await parseMarkdown(padChunkLines(chunk), ctx)
+    if (seq !== renderSeq) return
+    applyPreviewHtml(html, true)
+    hugeRendered.value++
+    await nextTick()
+    if (seq !== renderSeq) return
+    setupMermaidLazy(); rebuildOverlays(); applySearchHighlights(); setupLazyImages()
+  } finally {
+    hugeAutoLoading.value = false
+  }
+}
+
 // 真正的渲染动作（可被防抖调度或立即调用）
-// P2：解析已移至 Web Worker（previewClient → preview.worker），主线程不再被 markdown-it 阻塞；
-// 此处用 renderSeq 守卫，确保打字连续触发时在途的旧 Worker 结果不会覆盖最新预览。
-function renderNow(force = false) {
+// P2：解析已移至 Web Worker，主线程不再被 markdown-it 阻塞；renderSeq 守卫丢弃过期结果。
+// P3：超大文件改为块级渐进渲染（renderHugeChunked），其余整篇渲染。
+async function renderNow(force = false) {
   if (!store.activeTab) {
-    renderedHtml.value = ''
+    applyPreviewHtml('', false)
     renderedContent = ''
     previewPaused.value = false
+    hugeRendered.value = 0
+    hugeChunks.value = []
     return
   }
   // 编辑模式不渲染预览
   if (store.settings.viewMode === 'edit') return
-  // 超大文件：非强制（手动刷新）时不自动刷新
-  if (fileTier.value === 'huge' && !force) {
-    previewPaused.value = true
-    return
-  }
-  previewPaused.value = false
   if (renderTimer) {
     clearTimeout(renderTimer)
     renderTimer = null
   }
   const mySeq = ++renderSeq
   isRendering.value = true
-  parseMarkdown(store.content, {
-    filePath: store.activeTab?.filePath,
-    projectRoot: store.projectRoot
-  })
-    .then((html) => {
-      // 已有更新的渲染在途，丢弃本次过期结果
+  try {
+    if (fileTier.value === 'huge') {
+      // P3：超大文件始终先渲染首屏块（有预览、不卡死），其余按需加载；force 不再触发整篇解析
+      previewPaused.value = false
+      hugeAutoLoading.value = false
+      await renderHugeChunked(mySeq)
+    } else {
+      previewPaused.value = false
+      hugeRendered.value = 0
+      hugeChunks.value = []
+      const html = await parseMarkdown(store.content, {
+        filePath: store.activeTab?.filePath,
+        projectRoot: store.projectRoot
+      })
       if (mySeq !== renderSeq) return
-      renderedHtml.value = html
+      imageObserver?.disconnect(); imageObserver = null
+      applyPreviewHtml(html, false)
       renderedContent = store.content
-    })
-    .then(() => nextTick())
-    .then(() => {
+      await nextTick()
       if (mySeq !== renderSeq) return
-      setupMermaidLazy()
-      rebuildOverlays()
-      applySearchHighlights()
-      // P0：切标签渲染完成后，把预览滚动恢复到该标签上次的位置（无记录则归零）
-      if (pendingRestoreTabId === store.activeTabId) {
-        const el = previewScroll.value
-        if (el) {
-          restoringPreview = true
-          el.scrollTop = previewScrollMap.get(pendingRestoreTabId) ?? 0
-          requestAnimationFrame(() => { restoringPreview = false })
-        }
-        pendingRestoreTabId = null
-      }
-    })
-    .finally(() => {
-      if (mySeq === renderSeq) isRendering.value = false
-    })
+      setupMermaidLazy(); rebuildOverlays(); applySearchHighlights(); setupLazyImages(); restorePreviewScroll()
+    }
+  } finally {
+    if (mySeq === renderSeq) isRendering.value = false
+  }
 }
 
 // 按键输入等高频变更：按分级策略防抖调度
@@ -348,6 +506,10 @@ onUnmounted(() => {
     mermaidObserver.disconnect()
     mermaidObserver = null
   }
+  if (imageObserver) {
+    imageObserver.disconnect()
+    imageObserver = null
+  }
   window.removeEventListener('keydown', onPreviewKeydown)
 })
 
@@ -412,6 +574,12 @@ function onPreviewScroll() {
         source: 'preview',
         line: Math.max(1, line),
         atBottom: el.scrollTop >= el.scrollHeight - el.clientHeight - 2
+      }
+    }
+    // P3：超大文件滚动接近底部时自动加载下一块（无需手动点按钮，阅读体验连续）
+    if (fileTier.value === 'huge' && hugeHasMore.value) {
+      if (el.scrollTop >= el.scrollHeight - el.clientHeight - 160) {
+        loadNextChunk()
       }
     }
   })
@@ -665,6 +833,13 @@ function setupMermaidLazy() {
 /* 自动换行模式：图片/图表按容器宽度缩放，不撑破预览区 */
 .markdown-body.word-wrap-enabled img {
   max-width: 100% !important;
+}
+/* P3 懒加载图片占位：未进入视口前不加载 src，给一个轻量背景提示，
+   加载后由 IntersectionObserver 还原 src 并移除占位样式。 */
+.markdown-body img.lazy-img {
+  background: var(--hover-bg, #f0f0f0);
+  min-height: 12px;
+  border-radius: 4px;
 }
 .markdown-body.word-wrap-enabled .mermaid svg {
   max-width: 100% !important;
