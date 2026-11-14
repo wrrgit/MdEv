@@ -662,18 +662,36 @@ function setupMermaidLazy() {
   user-select: none;
   white-space: nowrap;
 }
-.markdown-body mark { background: #fff3b0; padding: 0 2px; border-radius: 2px; }
+/* 文档自带标注高亮（==文本==，markdown-it-mark 渲染为 <mark>）。
+   仅做柔和荧光底色、不加描边，以与搜索高亮区分。 */
+.markdown-body mark:not(.search-hit) {
+  background: #fff3b0;
+  padding: 0 2px;
+  border-radius: 2px;
+}
 
-/* ── 搜索词高亮 ── */
+/* ── 搜索词高亮 ──
+   加醒目的描边环，与文档手动高亮（纯黄底、无环）明显区分，
+   避免误以为非搜索内容被命中。 */
 .markdown-body mark.search-hit {
-  background: #ffd43b;
+  background: #ffe066;
   color: inherit;
   padding: 0 1px;
   border-radius: 2px;
+  box-shadow: 0 0 0 2px #f08c00;
 }
 html[data-theme='dark'] .markdown-body mark.search-hit {
   background: #a07c00;
   color: #fff;
+  box-shadow: 0 0 0 2px #ffd43b;
+}
+/* 非预览区（如左侧搜索结果列表里的命中片段）也复用同一套搜索高亮样式 */
+mark.search-hit {
+  background: #ffe066;
+  color: inherit;
+  padding: 0 1px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px #f08c00;
 }
 
 /* ── 脚注 ── */

@@ -906,7 +906,7 @@ function highlightMatch(lineContent, matches) {
       const before = result.slice(0, m.index)
       const matchText = result.slice(m.index, m.index + m.length)
       const after = result.slice(m.index + m.length)
-      result = before + '<mark>' + matchText + '</mark>' + after
+      result = before + '<mark class="search-hit">' + matchText + '</mark>' + after
     }
   }
   return result
