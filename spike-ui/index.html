@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>MdEv Tauri Spike</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; background: #f5f6f8; color: #1f2328; margin: 0; padding: 24px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: #656d76; font-size: 13px; margin-bottom: 24px; }
+  .card { background: #fff; border: 1px solid #d0d7de; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .card h2 { font-size: 14px; margin: 0 0 12px; color: #1f2328; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  input[type=text] { flex: 1; min-width: 280px; padding: 6px 10px; border: 1px solid #d0d7de; border-radius: 6px; font-size: 13px; }
+  button { padding: 6px 14px; border: 1px solid #d0d7de; background: #f6f8fa; border-radius: 6px; font-size: 13px; cursor: pointer; }
+  button:hover { background: #eef1f4; }
+  button.primary { background: #0969da; border-color: #0969da; color: #fff; }
+  button.primary:hover { background: #0757b3; }
+  .badges { margin: 8px 0; display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #eef1f4; color: #57606a; }
+  .badge.ok { background: #dcfce8; color: #166534; }
+  .badge.warn { background: #fef3c7; color: #92400e; }
+  .badge.err { background: #fee2e2; color: #991b1b; }
+  pre { background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 10px; font-size: 12px; max-height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+  ul { max-height: 200px; overflow: auto; font-size: 13px; margin: 8px 0 0; padding-left: 18px; }
+  img { max-width: 320px; max-height: 200px; display: block; margin-top: 8px; border: 1px solid #d0d7de; border-radius: 6px; }
+  #status { position: fixed; right: 16px; bottom: 16px; font-size: 12px; color: #656d76; background: #fff; border: 1px solid #d0d7de; padding: 4px 10px; border-radius: 6px; }
+</style>
+</head>
+<body>
+  <h1>MdEv — Tauri Spike 验证台</h1>
+  <div class="sub">验证 docs/tauri-migration-assessment.md §8 四步清单的前三项；导出选路（第 4 项）另行评估。</div>
+
+  <div class="card">
+    <h2>① 基础连通（greet）</h2>
+    <div class="row">
+      <button class="primary" id="btn-greet">invoke('greet')</button>
+      <span id="greet-out" class="badge">未调用</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>② 文件读取（read_text_file，含 P1 大文件守卫语义）</h2>
+    <div class="row">
+      <input type="text" id="read-path" placeholder="本地 .md 文件绝对路径（可用 >20MB 文件验证守卫）">
+      <button class="primary" id="btn-read">读取</button>
+    </div>
+    <div class="badges" id="read-badges"></div>
+    <pre id="read-out" hidden></pre>
+  </div>
+
+  <div class="card">
+    <h2>③ 列目录（list_dir 平铺版）</h2>
+    <div class="row">
+      <input type="text" id="dir-path" placeholder="目录绝对路径">
+      <button id="btn-dir">列出</button>
+    </div>
+    <ul id="dir-out" hidden></ul>
+  </div>
+
+  <div class="card">
+    <h2>④ 存在性 + 路径解析（exists / resolve_path）</h2>
+    <div class="row">
+      <input type="text" id="rel-path" placeholder="相对路径，如 ./assets/img.png">
+      <button id="btn-resolve">resolve</button>
+      <button id="btn-exists">exists</button>
+      <span id="resolve-out" class="badge">—</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>⑤ asset 协议图片（convertFileSrc，替代 mdimg:// 的可行性）</h2>
+    <div class="row">
+      <input type="text" id="img-path" placeholder="本地图片绝对路径（png/jpg）">
+      <button class="primary" id="btn-img">加载</button>
+    </div>
+    <img id="img-out" hidden alt="asset preview">
+    <div class="badges" id="img-badges"></div>
+  </div>
+
+  <div class="card">
+    <h2>⑥ 原生对话框（tauri-plugin-dialog）</h2>
+    <div class="row">
+      <button id="btn-dialog">选择文件</button>
+      <span id="dialog-out" class="badge">—</span>
+    </div>
+  </div>
+
+  <div id="status">spike · tauri-spike 分支</div>
+
+<script>
+  const tauri = window.__TAURI;
+  if (!tauri) {
+    document.querySelector('.sub').textContent = '错误：window.__TAURI 不可用（withGlobalTauri 未生效？）';
+  }
+  const { invoke, convertFileSrc } = tauri.core;
+  const dialog = tauri.dialog;
+
+  const setStatus = (msg) => document.getElementById('status').textContent = 'spike · ' + msg;
+  const badge = (text, cls) => { const s = document.createElement('span'); s.className = 'badge ' + (cls||''); s.textContent = text; return s; };
+  const fmtBytes = n => n >= 1048576 ? (n/1048576).toFixed(1) + ' MB' : (n/1024).toFixed(1) + ' KB';
+
+  // ① greet
+  document.getElementById('btn-greet').onclick = async () => {
+    try {
+      const msg = await invoke('greet', { name: 'MdEv' });
+      const out = document.getElementById('greet-out');
+      out.textContent = msg; out.className = 'badge ok';
+      setStatus('greet OK');
+    } catch (e) { document.getElementById('greet-out').textContent = 'FAIL: ' + e; }
+  };
+
+  // ② read_text_file
+  document.getElementById('btn-read').onclick = async () => {
+    const path = document.getElementById('read-path').value.trim();
+    const badges = document.getElementById('read-badges');
+    const pre = document.getElementById('read-out');
+    badges.innerHTML = ''; pre.hidden = true;
+    try {
+      const r = await invoke('read_text_file', { path });
+      if (!r.success) { badges.appendChild(badge('读取失败: ' + r.error, 'err')); return; }
+      badges.appendChild(badge('size=' + fmtBytes(r.size), 'ok'));
+      badges.appendChild(badge(r.isLarge ? 'isLarge' : 'not-large', r.isLarge ? 'warn' : ''));
+      badges.appendChild(badge(r.truncated ? ('truncated@' + fmtBytes(r.truncatedBytes)) : 'full-read', r.truncated ? 'warn' : 'ok'));
+      pre.textContent = r.content.slice(0, 2000) + (r.content.length > 2000 ? '\n… (截取前 2000 字符)' : '');
+      pre.hidden = false;
+      setStatus('read OK · ' + fmtBytes(r.size));
+    } catch (e) { badges.appendChild(badge('invoke 异常: ' + e, 'err')); }
+  };
+
+  // ③ list_dir
+  document.getElementById('btn-dir').onclick = async () => {
+    const path = document.getElementById('dir-path').value.trim();
+    const ul = document.getElementById('dir-out');
+    ul.hidden = true; ul.innerHTML = '';
+    try {
+      const entries = await invoke('list_dir', { path });
+      const dirs = entries.filter(e => e.isDir), files = entries.filter(e => !e.isDir);
+      for (const e of [...dirs, ...files]) {
+        const li = document.createElement('li');
+        li.textContent = (e.isDir ? '[目录] ' : '') + e.name;
+        ul.appendChild(li);
+      }
+      ul.hidden = false;
+      setStatus('list_dir OK · ' + entries.length + ' 项（目录 ' + dirs.length + '）');
+    } catch (e) { ul.hidden = false; const li = document.createElement('li'); li.textContent = '错误: ' + e; ul.appendChild(li); }
+  };
+
+  // ④ resolve / exists
+  document.getElementById('btn-resolve').onclick = async () => {
+    const relative = document.getElementById('rel-path').value.trim();
+    const base = document.getElementById('dir-path').value.trim() || 'C:/';
+    try {
+      const p = await invoke('resolve_path', { base, relative });
+      const out = document.getElementById('resolve-out');
+      out.textContent = '→ ' + p; out.className = 'badge ok';
+    } catch (e) { document.getElementById('resolve-out').textContent = 'FAIL: ' + e; }
+  };
+  document.getElementById('btn-exists').onclick = async () => {
+    const path = document.getElementById('rel-path').value.trim();
+    const base = document.getElementById('dir-path').value.trim() || 'C:/';
+    try {
+      const p = await invoke('resolve_path', { base, relative: path });
+      const ok = await invoke('exists', { path: p });
+      const out = document.getElementById('resolve-out');
+      out.textContent = (ok ? '存在: ' : '不存在: ') + p;
+      out.className = 'badge ' + (ok ? 'ok' : 'warn');
+    } catch (e) { document.getElementById('resolve-out').textContent = 'FAIL: ' + e; }
+  };
+
+  // ⑤ asset 协议图片
+  document.getElementById('btn-img').onclick = async () => {
+    const path = document.getElementById('img-path').value.trim();
+    const img = document.getElementById('img-out');
+    const badges = document.getElementById('img-badges');
+    badges.innerHTML = '';
+    try {
+      img.src = convertFileSrc(path);
+      img.hidden = false;
+      img.onload = () => { badges.appendChild(badge('asset 协议加载成功', 'ok')); setStatus('asset 图片 OK'); };
+      img.onerror = () => { badges.appendChild(badge('asset 协议加载失败（检查 scope/路径）', 'err')); };
+    } catch (e) { badges.appendChild(badge('convertFileSrc 异常: ' + e, 'err')); }
+  };
+
+  // ⑥ dialog
+  document.getElementById('btn-dialog').onclick = async () => {
+    try {
+      const p = await dialog.open({ multiple: false, filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }] });
+      const out = document.getElementById('dialog-out');
+      out.textContent = p ? ('选中: ' + p) : '已取消';
+      out.className = 'badge ' + (p ? 'ok' : '');
+      if (p) document.getElementById('read-path').value = Array.isArray(p) ? p[0] : p;
+      setStatus(p ? 'dialog OK' : 'dialog 取消');
+    } catch (e) { document.getElementById('dialog-out').textContent = 'FAIL: ' + e; }
+  };
+
+  setStatus('页面就绪，等待验证');
+</script>
+</body>
+</html>
