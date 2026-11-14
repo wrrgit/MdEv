@@ -13,25 +13,39 @@
 - **第二大改动面 = 自定义 HTML 弹窗 + `mdimg://` 图片协议。** 前者建议顺手改成应用内 Vue 弹窗（更干净），后者用 Tauri 的 asset 协议替换（更干净）。
 - **预估工作量：6–10 周（单人）。** 其中导出专项占 1–2 周且风险最高，建议先做 spike 验证三件最难的事（文件 I/O 边界、导出、图片协议）再决定全量迁移。
 
+> **复审（2026-11-15 第二次修订）**：① 前端性能计划 **P0–P5 已全部完成并随 v0.8.0 安装版发布**，迁移时整段继承、无需重做（增量影响见 §4.6）；② 契约面按当前代码重新实证为 **19 文件 / 136 处调用 / 45 个 API**（§1.1 已刷新）；③ 本机环境实测：WebView2 ✅、Node ✅、**Rust 工具链 ❌ 未装**，是 spike 编译运行的唯一硬前置（§8 环境就绪度）；④ 实施已启动：`tauri-spike` 分支 + `src-tauri/` 脚手架已落地。
+
 ---
 
 ## 1. 现状耦合清点（必须重建的契约面）
 
-MdEv 与 Electron 的耦合**全部**经由 `electron/preload.cjs` 暴露的 `window.api.*`，渲染端约 10 个文件、50+ 处调用。这就是 Tauri 要重建的契约面。
+MdEv 与 Electron 的耦合**全部**经由 `electron/preload.cjs` 暴露的 `window.api.*`。2026-11-15 复审实证：**渲染端 19 个文件、136 处调用，preload 暴露 45 个 API**（下方为当前快照，行号随代码演进会漂移，以方法名为准）。两个对迁移有利的事实：
 
-### 1.1 渲染端调用点（grep 实证）
+1. **大量调用使用可选链 `window.api?.x`**（容错设计）：Tauri 适配层可以增量实现——先覆盖高频 API，未实现的能力优雅降级而非崩溃。
+2. **调用形态统一为 `await window.api.xxx(...)`**：只需把这些调用点收拢到一个适配模块（如 `src/api/index.js`），再按运行时分流 Electron/Tauri 实现，核心编辑器/预览逻辑（parser.js / EditorPane / PreviewPane 的渲染主体）一行不用动。
 
-| 模块 | 调用的 API（行号） |
+### 1.1 渲染端调用点（2026-11-15 grep 实证，19 文件）
+
+| 文件 | 调用的 API |
 |---|---|
-| `src/App.vue` | `watchDirectory(187)` / `unwatchDirectory(185)` / `readFile(214,291,331,454,470,491)` / `readDirectory(226,341,436,502)` / `onFileChanged(236)` / `getPathForFile(286)` / `openFileDialog(324)` / `openPath(328)` / `openFolderDialog(339)` / `copyHtmlToClipboard(375)` / `onOpenFile(468)` / `onMenuEvent(479–541)` / `removeMenuListener(549,556)` |
-| `src/composables/useAutoSave.js` | `writeFile(44)` / `saveDraft(57)` / `saveFileDialog(68,100)` / `deleteDraft(79,111)` |
-| `src/composables/useExport.js` | `exportPdf(37)` / `exportHtml(78)` / `exportPng(114)` |
-| `src/composables/useSession.js` | `setSettings(15)` / `readDirectory(54)` / `readFile(66)` / `readDraft(70)` |
-| `src/composables/useTabClose.js` | `confirmUnsaved(15)` / `saveFileDialog(19)` / `writeFile(23)` / `deleteDraft(26,32)` |
-| `src/components/EditorPane.vue` | `getPathForFile(256)` / `copyImageFile(278)` / `saveClipboardImage(294)` |
-| `src/components/FileHistoryDialog.vue` | `listHistory(82)` / `readHistory(92)` / `restoreHistory(106)` / `showItemInFolder(126)` |
-| `src/composables/useTheme.js` | `getSettings(48)` / `setSettings(65,82,96)` / `onThemeChanged(104)` |
-| `src/components/FileTree.vue` | `readFile(146)` / `showInputBox(159)` / `exists(163)` / `createFile(168)` |
+| `src/App.vue` | watchDirectory / unwatchDirectory / readFile / readDirectory / onFileChanged / getPathForFile / openFileDialog / openPath / openFolderDialog / copyHtmlToClipboard / onOpenFile / onMenuEvent / removeMenuListener / setSettings |
+| `src/components/MenuBar.vue` | openExternal / openFileDialog / openPath / readFile / readDirectory / writeFile / saveFileDialog / deleteDraft / setSettings / closeWindow |
+| `src/components/Toolbar.vue` | showFormDialog / openImageDialog / showTableDialog |
+| `src/components/WelcomePage.vue` | openFileDialog / readFile / openFolderDialog / readDirectory |
+| `src/components/FileTree.vue` | readFile / showInputBox / exists / createFile / createDirectory / readDirectory / showItemInFolder / rename / delete |
+| `src/components/PanelSidebar.vue` | showInputBox / exists / createFile |
+| `src/components/EditorPane.vue` | getPathForFile / copyImageFile / saveClipboardImage |
+| `src/components/PreviewPane.vue` | openPath / resolvePath |
+| `src/components/TitleBar.vue` | minimizeWindow / maximizeWindow / closeWindow |
+| `src/components/StatusBar.vue`、`SettingsPanel.vue` | setSettings |
+| `src/components/QuickOpen.vue` | readFile |
+| `src/components/FileHistoryDialog.vue` | listHistory(82) / readHistory(92) / restoreHistory(106) / showItemInFolder(126) |
+| `src/composables/useAutoSave.js` | writeFile / saveDraft / deleteDraft / saveFileDialog |
+| `src/composables/useOpenFile.js`（P1 新增） | readFile / openPath |
+| `src/composables/useSession.js` | setSettings / readDirectory / readFile / readDraft |
+| `src/composables/useTabClose.js` | confirmUnsaved / saveFileDialog / writeFile / deleteDraft |
+| `src/composables/useTheme.js` | getSettings / setSettings / onThemeChanged |
+| `src/composables/useExport.js` | exportPdf / exportHtml / exportPng |
 
 ### 1.2 主进程 / 预加载实现（electron/）
 
@@ -39,7 +53,7 @@ MdEv 与 Electron 的耦合**全部**经由 `electron/preload.cjs` 暴露的 `wi
 |---|---|
 | `electron/preload.cjs` | 暴露全部 `window.api.*`（文件/草稿/图片/历史/剪贴板/监听/打开文件/对话框/Shell/搜索/导出/设置/主题/窗口控制/菜单事件） |
 | `electron/main.js` | `mdimg://` 特权协议注册(28) + 处理(~607) / 单实例锁(55–67) / 原生菜单(248+) / 各类对话框 `openFile(326)` `openFolder(339)` `saveFile(346)` `openImage(357)` `showTableDialog(368)` `confirmUnsaved(435)` `showInputBox(449)` `showFormDialog(509)` / Shell `openPath(588)` `showItemInFolder(594)` `openExternal(601)` / `file:resolvePath(607)` / 窗口 bounds 持久化 |
-| `electron/ipc/fileHandlers.js` | `file:read(10)` `file:write(19)` `file:readdir(30)` `file:create(40)` `file:mkdir(49)` `file:rename(58)` `file:delete(67)` `file:exists(81)` `file:watch(90)` `file:unwatch(110)` / 草稿 `draft:save(123)` `draft:read(135)` `draft:delete(146)` |
+| `electron/ipc/fileHandlers.js` | `file:read(17)` `file:write(41)` `file:readdir(52)` `file:create(62)` `file:mkdir(71)` `file:rename(80)` `file:delete(89)` `file:exists(103)` `file:watch(112)` `file:unwatch(132)` / 草稿 `draft:save(145)` `draft:read(157)` `draft:delete(168)`。**P1 增：`file:read` 内建大文件守卫**——stat → >20MB 标记 `isLarge` → >150MB 只读前 20MB 并标记 `truncated`，返回 `{content,size,isLarge,truncated,truncatedBytes}`。该语义必须随迁移复刻进 Rust command（见 §4.6） |
 | `electron/ipc/historyHandlers.js` | `history:list(48)` `history:read(68)` `history:restore(80)` |
 | `electron/ipc/imageHandlers.js` | `image:saveClipboardImage(25)` `image:copyImageFile(43)` |
 | `electron/ipc/searchHandlers.js` | `search:project(5)` |
@@ -131,11 +145,28 @@ Electron 用 `contextBridge` 一次性暴露全部 API；Tauri 2 用 **capabilit
 
 ---
 
+### 4.6 复审：P0–P5 性能优化完成后的增量影响（2026-11-15）
+
+前端性能计划已全部落地（提交链 `d8cb362→1e6f9e0`，v0.8.0 安装版已发布）。逐项核验对迁移结论的影响：
+
+| P0–P5 产出 | 迁移影响 |
+|---|---|
+| P0 多文件状态保留 / P4 LRU + 预览缓存 | **纯前端，零影响**。EditorState / 缓存均在 WebView 内存中，Tauri 下行为一致 |
+| P1 大文件读取守卫（`fileHandlers.js`） | **必须随 `file:read` 一起移植进 Rust command**：stat → 20MB 阈值 → 150MB 截断只读前 20MB，返回结构 `{content,size,isLarge,truncated,truncatedBytes}` 语义不变。这是 Rust 端第一个要写对的业务逻辑 |
+| P1 前端侧 `useOpenFile.js` / `LargeFileConfirmModal.vue` | 纯前端，零影响 |
+| P2 Web Worker 解析（parserCore / preview.worker / previewClient） | **Tauri WebView2 下照常工作**（Vite `?worker` 打包为经典 worker、无 Node/Electron 依赖，已验证 worker 包自包含）。主线程 DOMPurify 净化流程不变 |
+| P3 分块渲染 + 图片懒加载 | 纯前端，零影响。懒加载对 asset 协议同样生效（`mdimg://` → `convertFileSrc` 的替换点不变） |
+| P5 专注模式视口 decoration | 纯前端（CM6 扩展），零影响 |
+
+**净结论：P0–P5 不改变迁移面与工作量估算，反而抬高迁移后基线**——性能计划全是 WebView 内 JS 活，Tauri 只换底不换脑，全部成果直接继承。唯一新增动作：Rust `file:read` command 需复刻大文件守卫语义（约半天）。
+
+---
+
 ## 5. 工作量拆解（分阶段，单人估算）
 
 | 阶段 | 内容 | 关键交付 | 估时 | 风险 |
 |---|---|---|---|---|
-| **P0 Spike** | 脚手架：Tauri 2 + Vite/Vue 打通；验证「文件读 + 窗口控制 + mdimg 替换 + 导出（PDF/PNG 选路）」四件事能跑通 | 可行性结论 + 最小可运行 demo | 3–5d | 导出选路不定 |
+| **P0 Spike** | 脚手架：Tauri 2 + Vite/Vue 打通；验证「文件读 + 窗口控制 + mdimg 替换 + 导出（PDF/PNG 选路）」四件事能跑通 | 可行性结论 + 最小可运行 demo | 3–5d | 导出选路不定 → **已启动（2026-11-15）：`tauri-spike` 分支脚手架已落地，待 Rust 工具链安装后编译跑通**（§8） |
 | **P1 后端契约** | 用 Rust 重建 §3 中 #1–#12、#23、#25（文件/草稿/历史/图片/Shell/搜索/设置/主题/窗口/拖拽） | 全部 `invoke()` 可用 | 1–2 周 | 低 |
 | **P2 外壳** | #14–#16 窗口控制 + 原生菜单 + 单实例 + 文件关联 | 菜单/单实例/主题跟随 | 3–5d | 低 |
 | **P3 图片协议** | #17 `mdimg://` → asset 协议（parser + PreviewPane） | 本地图正常显示 | 1–2d | 低 |
@@ -168,3 +199,24 @@ Electron 用 `contextBridge` 一次性暴露全部 API；Tauri 2 用 **capabilit
 **回滚**
 - `tauri-spike` 独立分支，不与 `master` 混；若 P0/P5 任一硬阻塞，丢弃分支、保留 Electron 主线，无回滚成本。
 - 即便全量迁移后，Electron 代码（`electron/` 目录）在 git 历史中完整保留，可随时 checkout 回退。
+
+---
+
+## 8. 环境就绪度与实施状态（本机实测 2026-11-15）
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| WebView2 Runtime | ✅ 157.0.4341.46 | Tauri on Windows 的渲染内核已就绪 |
+| Node.js | ✅ v22.22.2 | 前端构建可用 |
+| Rust / Cargo | ❌ 未安装 | spike 编译的硬前置 |
+| rustup | ❌ 未安装 | — |
+| MSVC Build Tools | ❌ 未安装（`cl.exe` 不在 PATH） | Rust `x86_64-pc-windows-msvc` 目标必需；用 VS Installer 装「使用 C++ 的桌面开发」工作负载，约 2–4GB，需管理员权限 |
+
+**实施状态**
+- ✅ 已完成：`tauri-spike` 分支建立；`src-tauri/` 脚手架（Cargo.toml / tauri.conf.json / capabilities / Rust commands 含 P1 大文件守卫语义 / `spike-ui/` 验证页）；契约面复审（§1.1）。
+- ⏳ 阻塞项：安装 rustup + MSVC Build Tools → `npx @tauri-apps/cli dev` 编译跑通。
+- **四步验证清单（spike 验收标准，工具链就绪后执行）**：
+  1. **文件 I/O**：spike 页输入任意本地 .md 路径 → `invoke('read_text_file')` 返回内容 + `isLarge/truncated` 标记正确（拿 >20MB 文件验证守卫语义）。
+  2. **asset 协议图片**：输入本地图路径 → `convertFileSrc` 后 `<img>` 正常显示（替代 `mdimg://` 的可行性）。
+  3. **对话框**：`window.__TAURI__.dialog.open()` 选文件/文件夹正常。
+  4. **导出选路（§4.1）**：确认本机 Chrome → CDP `Page.printToPDF` 方案 B 可行性；不可行则评估方案 A。**此项结论决定是否全量迁移。**
