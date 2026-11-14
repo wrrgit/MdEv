@@ -195,8 +195,9 @@
             ref="searchInputEl"
             v-model="searchInput"
             type="text"
-            placeholder="搜索…  (↑/↓ 切换 · Enter 下一个 · Esc 退出)"
+            placeholder="搜索…（输入即搜 · ↑/↓ 切换 · Enter 下一个 · Esc 退出）"
             class="search-input"
+            @input="onSearchInput"
             @keydown.enter.prevent="onSearchEnter"
             @keydown.down.prevent="onResultNav(1)"
             @keydown.up.prevent="onResultNav(-1)"
@@ -272,15 +273,19 @@ watch(() => store.searchFocusRequest, () => {
   }
   nextTick(() => {
     const el = searchInputEl.value
-    // 若搜索框为空且编辑器有选区，预填选区首行文本（选中即搜）
+    // 若搜索框为空且编辑器有选区，预填选中的文本内容（选中即搜）
     if (el && !searchInput.value) {
       const view = window.editorRef
       if (view) {
         const sel = view.state.selection.main
         if (!sel.empty) {
           const raw = view.state.sliceDoc(sel.from, sel.to).trim()
-          const firstLine = raw.split(/\r?\n/)[0].trim()
-          if (firstLine) searchInput.value = firstLine
+          if (raw) {
+            // 单行选区直接整段填入；多行选区取首行（行内搜索模型无法跨行匹配）
+            const lines = raw.split(/\r?\n/)
+            const prefill = lines.length > 1 ? lines[0].trim() : raw
+            if (prefill) searchInput.value = prefill
+          }
         }
       }
     }
@@ -339,6 +344,21 @@ function onSearchEsc() {
 
 function onScopeChange() {
   if (searchInput.value.trim()) doSearch()
+}
+
+// 输入即搜：用户每敲一个字符即触发搜索（防抖，避免逐字请求跨文件扫描）
+let searchDebounceTimer = null
+function onSearchInput() {
+  if (!searchInput.value.trim()) {
+    // 清空由 watch(searchInput) 负责复位，这里不发起搜索
+    if (searchDebounceTimer) { clearTimeout(searchDebounceTimer); searchDebounceTimer = null }
+    return
+  }
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
+  searchDebounceTimer = setTimeout(() => {
+    searchDebounceTimer = null
+    doSearch()
+  }, 220)
 }
 
 const hasTabs = computed(() => store.tabs.length > 0)
