@@ -5,9 +5,13 @@
 //! 命令命名与 Electron channel 对应（`file:read` → `read_file`），映射表在 src/api/tauriApi.js。
 
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::Mutex;
+use std::time::Duration;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
@@ -939,10 +943,49 @@ fn save_blob(app: AppHandle, default_path: String, data: Vec<u8>) -> Value {
 
 // ── 文件监听（spike：watcher 常驻 forget，unwatch 仅返回成功）──
 
+// ── 文件监听状态：由 Tauri 托管的 Watcher 注册表 ──
+// 旧实现用 std::mem::forget 常驻 watcher，unwatch 只返成功但实际停不掉；
+// 改为把 watcher 存进 map，移除时 drop 即结束 notify 的后台监听线程。
+#[derive(Default)]
+struct WatchState(Mutex<HashMap<String, notify::RecommendedWatcher>>);
+
+// ── 系统主题广播（原生 ThemeChanged 事件 + 低频轮询兜底，去重避免重复 emit）──
+static LAST_THEME: AtomicU8 = AtomicU8::new(0); // 0=未知 1=light 2=dark
+
+fn theme_code(theme: &str) -> u8 {
+    if theme == "dark" { 2 } else { 1 }
+}
+
+fn current_theme() -> &'static str {
+    if dark_light::detect() == dark_light::Mode::Dark {
+        "dark"
+    } else {
+        "light"
+    }
+}
+
+/// force=true 仅用于启动时的首次广播；其余只有模式真正变化才 emit。
+fn broadcast_theme(app: &AppHandle, theme: &str, force: bool) {
+    let code = theme_code(theme);
+    if !force && LAST_THEME.swap(code, Ordering::Relaxed) == code {
+        return;
+    }
+    LAST_THEME.store(code, Ordering::Relaxed);
+    let _ = app.emit("theme:changed", theme);
+}
+
+/// 对应 Electron `file:watch`
 #[tauri::command]
 fn watch_directory(app: AppHandle, dir_path: String) -> Value {
     use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
     let path = PathBuf::from(&dir_path);
+    let state = app.state::<WatchState>();
+
+    // 同一路径重复监听：先移除旧 watcher，避免事件叠加
+    if let Ok(mut guard) = state.0.lock() {
+        guard.remove(&dir_path);
+    }
+
     let app_clone = app.clone();
     let handler = move |res: notify::Result<notify::Event>| {
         if let Ok(ev) = res {
@@ -962,18 +1005,30 @@ fn watch_directory(app: AppHandle, dir_path: String) -> Value {
         Err(e) => return json!({ "success": false, "error": e.to_string() }),
     };
     match watcher.watch(&path, RecursiveMode::Recursive) {
-        Ok(_) => {
-            std::mem::forget(watcher);
-            json!({ "success": true })
-        }
+        Ok(_) => match state.0.lock() {
+            Ok(mut guard) => {
+                guard.insert(dir_path, watcher);
+                json!({ "success": true })
+            }
+            Err(_) => json!({ "success": false, "error": "watcher state poisoned" }),
+        },
         Err(e) => json!({ "success": false, "error": e.to_string() }),
     }
 }
 
+/// 对应 Electron `file:unwatch`：真正停止并从注册表移除
 #[tauri::command]
-fn unwatch_directory(dir_path: String) -> Value {
-    let _ = dir_path;
-    json!({ "success": true })
+fn unwatch_directory(app: AppHandle, dir_path: String) -> Value {
+    let state = app.state::<WatchState>();
+    // 结果先落到局部变量：让 MutexGuard 临时值在 state 之前析构，避免 E0597
+    let result = match state.0.lock() {
+        Ok(mut guard) => {
+            guard.remove(&dir_path);
+            json!({ "success": true })
+        }
+        Err(_) => json!({ "success": false, "error": "watcher state poisoned" }),
+    };
+    result
 }
 
 // ── 菜单（复刻 Electron 原生菜单；点击 emit `menu:<id>` 供渲染端 onMenuEvent 监听）──
@@ -1028,6 +1083,9 @@ pub fn run() {
             }
         }))
         .setup(|app| {
+            // 注册文件监听状态（watch/unwatch 命令通过 app.state::<WatchState>() 取用）
+            app.manage(WatchState::default());
+
             // 应用自带 TitleBar/MenuBar（Electron `frame:false` 同款），因此隐藏 Tauri 原生
             // 菜单栏，避免「上下两个菜单栏」；但保留菜单对象以维持 Ctrl+S/Ctrl+O 等加速键
             // 与 menu:<id> 事件链。hide_menu() 在 Windows 支持（仅 macOS 不支持）。
@@ -1038,13 +1096,14 @@ pub fn run() {
                 }
                 let _ = win.hide_menu();
             }
-            // 启动即广播一次系统主题（渲染端 onThemeChanged 监听；OS 实时变化暂不追踪）
-            let theme = if dark_light::detect() == dark_light::Mode::Dark {
-                "dark"
-            } else {
-                "light"
-            };
-            let _ = app.app_handle().emit("theme:changed", theme);
+            // 启动广播一次；随后由原生 ThemeChanged 事件即时跟随，低频轮询兜底
+            //（部分平台不上报 ThemeChanged，轮询保证 Windows 也能跟随），broadcast_theme 去重。
+            broadcast_theme(&app_handle, current_theme(), true);
+            let poll_handle = app_handle.clone();
+            std::thread::spawn(move || loop {
+                std::thread::sleep(Duration::from_secs(2));
+                broadcast_theme(&poll_handle, current_theme(), false);
+            });
 
             // 首实例文件关联：从启动参数提取 .md 路径，延迟广播给已就绪的前端
             let re = regex::Regex::new(r"(?i)\.(md|markdown|txt|json)$").unwrap();
@@ -1063,6 +1122,16 @@ pub fn run() {
         .on_menu_event(|app, event| {
             let id = event.id().0.clone();
             let _ = app.emit(&format!("menu:{}", id), ());
+        })
+        .on_window_event(|window, event| {
+            // OS 主题变化：即时广播给渲染端 onThemeChanged（与轮询共用去重逻辑）
+            if let tauri::WindowEvent::ThemeChanged(theme) = event {
+                let name = match theme {
+                    tauri::Theme::Dark => "dark",
+                    _ => "light",
+                };
+                broadcast_theme(window.app_handle(), name, false);
+            }
         })
         .invoke_handler(tauri::generate_handler![
             get_settings,
