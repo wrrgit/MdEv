@@ -1,8 +1,10 @@
-; 安装时在安装模式选择页提供“设为 .md 默认打开程序”勾选框
-; 关联写入 HKCU，无需管理员权限；同时注册到“打开方式”列表
+; 安装向导的最后一项（安装进度开始前的最后一个选项页）提供
+; “设为 .md 默认打开程序”勾选框，默认勾选，用户可以取消。
+; 关联写入 HKCU，无需管理员权限；同时注册到“打开方式”列表。
 ;
 ; 另外：选择“为所有人安装”时安装程序会被提权重启（新进程新窗口），
-; 这里在提权前记录窗口位置与勾选框状态，提权后的新窗口沿用同样的位置和选择。
+; 这里在提权前记录窗口位置，提权后的新窗口沿用同样的位置。
+; 勾选状态写入 INI 而不是只放变量，便于跨进程恢复与静默安装读取。
 
 !include "LogicLib.nsh"
 !include "nsDialogs.nsh"
@@ -13,10 +15,12 @@
 Var mdEvPosLastX
 Var mdEvPosLastY
 Var mdEvAssocCheckbox
+Var mdEvAssocDialog
 
 ; 新窗口创建完成后按上次记录的位置摆放
 !define MUI_CUSTOMFUNCTION_GUIINIT MdEvRestoreWindowPos
-; 安装模式选择页显示时插入“设为默认打开程序”勾选框并开始记录窗口位置（卸载界面不适用）
+; 安装模式页 SHOW 时启动窗口位置记录。勾选项已移到最后的选项页，
+; 因此这里不再创建勾选框，也不再提前写入关联状态。
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW MdEvPageShow
 
 Function MdEvRestoreWindowPos
@@ -31,18 +35,7 @@ Function MdEvRestoreWindowPos
 FunctionEnd
 
 Function MdEvPageShow
-  ; 勾选框状态要能跨提权进程传递（提权后是新进程），所以写入 INI 而不是只放变量
-  ${NSD_CreateCheckbox} 10u 80u 280u 18u "将 MdEv 设为 .md 文件的默认打开程序"
-  Pop $mdEvAssocCheckbox
-  ${NSD_SetState} $mdEvAssocCheckbox ${BST_CHECKED}
-  WriteINIStr "${MDEV_WNDPOS_INI}" "assoc" "set_default" "1"
-  ${NSD_OnClick} $mdEvAssocCheckbox MdEvSaveAssocState
   !insertmacro _NSD_CreateTimer MdEvSaveWindowPos 200
-FunctionEnd
-
-Function MdEvSaveAssocState
-  ${NSD_GetState} $mdEvAssocCheckbox $0
-  WriteINIStr "${MDEV_WNDPOS_INI}" "assoc" "set_default" "$0"
 FunctionEnd
 
 Function MdEvSaveWindowPos
@@ -60,6 +53,51 @@ Function MdEvSaveWindowPos
     ${EndIf}
   ${EndIf}
   System::Store L
+FunctionEnd
+
+; electron-builder 在“更换安装目录页之后、安装进度页之前”展开这个宏，
+; 因此该页就是安装向导里最后一个可交互的选项页。
+; Tauri 安装包的 custom 页面同样插在 MUI_PAGE_INSTFILES 之前，两侧位置一致。
+!macro customPageAfterChangeDir
+  Page custom MdEvAssocPageCreate MdEvAssocPageLeave
+!macroend
+
+Function MdEvAssocPageCreate
+  ; 静默安装不弹页面，也不擅自把 MdEv 设为默认
+  IfSilent MdEvAssocPageSkip
+  nsDialogs::Create 1018
+  Pop $mdEvAssocDialog
+  ${If} $mdEvAssocDialog == error
+    Abort
+  ${EndIf}
+
+  ${NSD_CreateLabel} 0 0 100% 26u "安装向导的最后一项：是否让 MdEv 成为 Markdown 文件的默认打开程序。"
+  Pop $0
+  ${NSD_CreateCheckbox} 0 34u 100% 18u "将 MdEv 设为 .md 文件的默认打开程序（推荐，可稍后在 Windows 设置中更改）"
+  Pop $mdEvAssocCheckbox
+
+  ; 默认勾选；若为提权重启后的内层进程，沿用上一次的选择
+  StrCpy $0 "1"
+  ReadINIStr $1 "${MDEV_WNDPOS_INI}" "assoc" "set_default"
+  ${If} $1 == "0"
+    StrCpy $0 "0"
+  ${EndIf}
+  ${If} $0 == "1"
+    ${NSD_SetState} $mdEvAssocCheckbox ${BST_CHECKED}
+  ${Else}
+    ${NSD_SetState} $mdEvAssocCheckbox ${BST_UNCHECKED}
+  ${EndIf}
+  WriteINIStr "${MDEV_WNDPOS_INI}" "assoc" "set_default" "$0"
+  nsDialogs::Show
+  Return
+
+  MdEvAssocPageSkip:
+    Abort
+FunctionEnd
+
+Function MdEvAssocPageLeave
+  ${NSD_GetState} $mdEvAssocCheckbox $0
+  WriteINIStr "${MDEV_WNDPOS_INI}" "assoc" "set_default" "$0"
 FunctionEnd
 !endif
 
@@ -82,7 +120,7 @@ FunctionEnd
   WriteRegStr HKCU "Software\Classes\Applications\MdEv.exe\shell\open\command" "" '"$INSTDIR\MdEv.exe" "%1"'
   WriteRegStr HKCU "Software\Classes\Applications\MdEv.exe\SupportedTypes" ".md" ""
 
-  ; 静默安装不弹窗；是否设为默认打开程序取自安装模式页的勾选框
+  ; 静默安装不弹窗；是否设为默认打开程序取自最后选项页的勾选框
   IfSilent mdSkipDefault
   ReadINIStr $0 "${MDEV_WNDPOS_INI}" "assoc" "set_default"
   StrCmp $0 "1" 0 mdSkipDefault
