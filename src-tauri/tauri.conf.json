@@ -10,10 +10,32 @@
     "frontendDist": "../dist"
   },
   "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "wrrgit",
+    "copyright": "Copyright © 2026 wrrgit",
+    "category": "DeveloperTool",
+    "shortDescription": "MdEv — Markdown 编辑器",
+    "longDescription": "MdEv 是一款本地 Markdown 编辑器，支持实时预览、文件树、历史版本、跨文件搜索与 PDF/PNG/HTML 导出。",
+    "homepage": "https://github.com/wrrgit/MdEv",
     "icon": [
       "icons/icon.ico",
       "icons/icon.png"
-    ]
+    ],
+    "fileAssociations": [
+      {
+        "ext": ["md", "markdown", "mdown", "mdx"],
+        "name": "Markdown Document",
+        "description": "MdEv Markdown 文档",
+        "mimeType": "text/markdown",
+        "role": "Editor"
+      }
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "both"
+      }
+    }
   },
   "app": {
     "withGlobalTauri": true,
