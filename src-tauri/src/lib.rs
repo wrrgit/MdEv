@@ -184,6 +184,18 @@ fn resolve_path(base: String, relative: String) -> Result<String, String> {
     Ok(normalize_path(&joined))
 }
 
+/// 对应 Electron 打开文件对话框（spike 用 Rust 端 dialog 插件直出路径，
+/// 避免前端再引入 @tauri-apps/plugin-dialog 的 JS 包；withGlobalTauri 下
+/// 插件不会挂到 window.__TAURI__.dialog，故走 Rust 命令更稳）。
+/// dialog 插件 2.8 提供 callback 式 pick_file(f) 与阻塞式 blocking_pick_file()，
+/// 此处用阻塞式（spike 单线程命令，无碍）。
+#[tauri::command]
+fn pick_file(app: tauri::AppHandle) -> Option<String> {
+    use tauri_plugin_dialog::DialogExt;
+    let p = app.dialog().file().blocking_pick_file();
+    p.map(|pb| pb.to_string())
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -197,7 +209,8 @@ pub fn run() {
             write_text_file,
             list_dir,
             exists,
-            resolve_path
+            resolve_path,
+            pick_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

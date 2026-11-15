@@ -90,12 +90,11 @@
   <div id="status">spike · tauri-spike 分支</div>
 
 <script>
-  const tauri = window.__TAURI;
+  const tauri = window.__TAURI__;
   if (!tauri) {
-    document.querySelector('.sub').textContent = '错误：window.__TAURI 不可用（withGlobalTauri 未生效？）';
+    document.querySelector('.sub').textContent = '错误：window.__TAURI__ 不可用（withGlobalTauri 未生效？）';
   }
   const { invoke, convertFileSrc } = tauri.core;
-  const dialog = tauri.dialog;
 
   const setStatus = (msg) => document.getElementById('status').textContent = 'spike · ' + msg;
   const badge = (text, cls) => { const s = document.createElement('span'); s.className = 'badge ' + (cls||''); s.textContent = text; return s; };
@@ -183,14 +182,14 @@
     } catch (e) { badges.appendChild(badge('convertFileSrc 异常: ' + e, 'err')); }
   };
 
-  // ⑥ dialog
+  // ⑥ dialog（经 Rust pick_file 命令，避免前端引入插件 JS）
   document.getElementById('btn-dialog').onclick = async () => {
     try {
-      const p = await dialog.open({ multiple: false, filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }] });
+      const p = await invoke('pick_file');
       const out = document.getElementById('dialog-out');
       out.textContent = p ? ('选中: ' + p) : '已取消';
       out.className = 'badge ' + (p ? 'ok' : '');
-      if (p) document.getElementById('read-path').value = Array.isArray(p) ? p[0] : p;
+      if (p) document.getElementById('read-path').value = p;
       setStatus(p ? 'dialog OK' : 'dialog 取消');
     } catch (e) { document.getElementById('dialog-out').textContent = 'FAIL: ' + e; }
   };

@@ -9,9 +9,9 @@
 
 - **可行，但这是后端原生层的全量重写，不是重构。** 前端（Vue3 + CodeMirror6 + markdown-it + DOMPurify + KaTeX + mermaid）是纯 Web 技术栈，可原样跑进 Tauri 的 WebView，**零改动**；真正的改动集中在「Rust 后端 + IPC 边界 + 打包 + 少数 Electron 专属特性」。
 - **性能上 Tauri 赢在体积 / 内存 / 启动，但救不了前端 JS 层的卡顿。** 那份性能计划里的 P0–P3（切标签丢状态、预览整篇同步渲染、大文件滚动）全是 WebView 内 JavaScript 的问题，Tauri 的 Rust 后端不会让 JS 跑更快。换 Tauri ≠ 免做前端性能优化。
-- **最大风险点 = 导出（PDF / PNG）。** Electron 用隐藏 `BrowserWindow` + `printToPDF()` / `capturePage()`，Tauri 2 没有 1:1 等价物，需要研究替代方案（见 §4.1）。
+- **导出（PDF / PNG）= 原最大风险点，spike 已定可行路径。** Electron 用隐藏 `BrowserWindow` + `printToPDF()` / `capturePage()`，Tauri 2 没有 1:1 等价物；但 spike 结论（§4.1）确定改用渲染端 `jspdf` + `html2canvas`（依赖已在 `package.json`）做客户端导出、HTML 导出为纯写文件——**不再依赖任何外部 Chrome**，全量迁移可行。
 - **第二大改动面 = 自定义 HTML 弹窗 + `mdimg://` 图片协议。** 前者建议顺手改成应用内 Vue 弹窗（更干净），后者用 Tauri 的 asset 协议替换（更干净）。
-- **预估工作量：6–10 周（单人）。** 其中导出专项占 1–2 周且风险最高，建议先做 spike 验证三件最难的事（文件 I/O 边界、导出、图片协议）再决定全量迁移。
+- **预估工作量：6–9 周（单人）。** 导出专项风险已随客户端方案下调（§4.1），spike 已验证文件 I/O、asset 图片、对话框、导出选路四件最难的事全部跑通，全量迁移可行。
 
 > **复审（2026-11-15 第二次修订）**：① 前端性能计划 **P0–P5 已全部完成并随 v0.8.0 安装版发布**，迁移时整段继承、无需重做（增量影响见 §4.6）；② 契约面按当前代码重新实证为 **19 文件 / 136 处调用 / 45 个 API**（§1.1 已刷新）；③ 本机环境实测：WebView2 ✅、Node ✅、**Rust 工具链 ❌ 未装**，是 spike 编译运行的唯一硬前置（§8 环境就绪度）；④ 实施已启动：`tauri-spike` 分支 + `src-tauri/` 脚手架已落地。
 
@@ -119,20 +119,26 @@ MdEv 与 Electron 的耦合**全部**经由 `electron/preload.cjs` 暴露的 `wi
 
 ## 4. 关键风险点与应对
 
-### 4.1 导出 PDF（最高风险）
-Electron 的 `webContents.printToPDF()` 是 Chromium 原生能力，Tauri 2 没有直接等价。可选路径：
+### 4.1 导出 PDF（原最高风险，spike 2026-11-15 已定方案）
 
-| 方案 | 做法 | 保真度 | 代价 |
+Electron 的 `webContents.printToPDF()` 是 Chromium 原生能力，Tauri 2 没有直接等价。spike 阶段对「导出选路」做了实测结论（见 §8 四步清单第 4 项）：
+
+- **本机有 Chrome，但终端用户不能假定装有 Chrome** → 依赖外部 Chrome 的 CDP `Page.printToPDF`（原方案 B）**不具备分发可行性**，排除。
+- 现状 `exportHandlers.js` 的 PDF/PNG 都靠隐藏 `BrowserWindow` 渲染（PNG `capturePage()`、PDF `printToPDF()`），Tauri+WebView2 两者皆无内建等价。
+
+**spike 结论 = 改用客户端导出（方案 E），全量迁移可行：**
+| 格式 | 做法 | 保真度 | 代价 |
 |---|---|---|---|
-| A. 渲染端 `window.print()` | 隐藏 Webview 加载导出 HTML，`window.print()` 让用户选「另存为 PDF」 | 高 | 需手动操作，丧失自动化；受系统打印对话框限制 |
-| B. Rust + headless Chrome | 用 `headless_chrome` crate 走 CDP `Page.printToPDF`（最接近现状） | 高 | 需本机有 Chrome 或随包捆绑（增体积），维护重 |
-| C. Rust PDF crate | `printpdf` / `genpdf` 直接画 | 低 | 无法还原 HTML/CSS/KaTeX/mermaid 版式，不可取 |
-| D. 社区 `tauri-plugin-print` | 封装 WebView 打印 | 中 | 依赖维护状态，Windows 下仍走系统打印 |
+| PDF（E） | 渲染端 `html2canvas` 截 preview DOM + `jspdf` 拼页 | 中（栅格化，文字非矢量） | 依赖 `html2canvas`/`jspdf` 已在 `package.json`；需处理 KaTeX/mermaid 栅格兼容性——现状 Electron 刻意用隐藏窗口正是为规避 html2canvas 的 SVG/公式缺陷，MVP 阶段可接受 |
+| PNG（E） | 渲染端 `html2canvas` 截 preview DOM → 存盘 | 中 | 同上；免去 `capturePage` 全页长图测量与 16384px 高度限制处理 |
+| HTML | Rust 写文件（HTML 字符串已在渲染端生成，KaTeX 字体已 base64 内联） | 高（原样自包含） | 直译，零渲染 |
 
-**建议**：先用 B 做 spike（若本机/打包机有 Chrome，CDP 路线最稳）；若不可接受，降级到 A（保留一键导出但多一步系统对话框）。**这是决定「能否全量迁移」的开关项——必须在 spike 阶段验证。**
+> 备选增强（非阻塞）：Windows-only 可用 WebView2 `PrintToPdf` COM API 经 Rust command 出矢量 PDF，保真度回到 `printToPDF` 水准；作为后续优化，不影响迁移决策。
 
-### 4.2 导出 PNG（中风险）
-Tauri 2 提供 `webview.capture_snapshot()` 截图当前视口。难点在「整页长图」：需先测量内容高度并把 webview 窗口 resize 到全高（或滚动拼接）。可行，但需处理超大文档（>16384px 高度限制，现状 `exportHandlers.js:192` 已有限制逻辑，需平移）。也可直接用前端 `html2canvas` 借 KaTeX/mermaid 已渲染的 DOM，反而更省事——但这又落回 JS 层。
+**开关项结论：全量迁移可行。** 导出不再依赖外部 Chrome，改用客户端 `jspdf`+`html2canvas`；保真度较 Electron 矢量方案略降，但功能等价、可跨平台分发。原方案 A（`window.print()` 系统对话框）/B（CDP Chrome）/C（Rust crate 画版式，不可取）/D（社区 plugin，维护态不定）均不作为主路径。
+
+### 4.2 导出 PNG / 总导出路径（中风险，spike 已定）
+PNG 与 PDF 统一走 §4.1 的方案 E（渲染端 `html2canvas` 截 preview DOM），不再使用 Tauri `webview.capture_snapshot()`——后者只截当前视口，做整页长图需测量高度 + resize webview 到全高 / 滚动拼接，且要平移现状 `exportHandlers.js:192` 的 16384px 高度限制逻辑，复杂度高。`html2canvas` 直接借 KaTeX/mermaid 已渲染的 DOM，反而更省事、无外部依赖。代价是栅格化保真度（见 §4.1）。
 
 ### 4.3 `mdimg://` 图片协议（必改，但更优）
 现状：主进程注册特权 scheme，渲染端 `parser.js:317` 把本地图转 `mdimg:///abs/path`，`PreviewPane.vue:384/416` 解析回路径。Tauri 改法：用 `convertFileSrc(absPath)`（Tauri v2 返回 `http://asset.localhost/...`），**只需改 parser.js 生成处 + PreviewPane 两处识别处**，且天然带 CSP 白名单，比自建 scheme 更规范。
@@ -166,7 +172,7 @@ Electron 用 `contextBridge` 一次性暴露全部 API；Tauri 2 用 **capabilit
 
 | 阶段 | 内容 | 关键交付 | 估时 | 风险 |
 |---|---|---|---|---|
-| **P0 Spike** | 脚手架：Tauri 2 + Vite/Vue 打通；验证「文件读 + 窗口控制 + mdimg 替换 + 导出（PDF/PNG 选路）」四件事能跑通 | 可行性结论 + 最小可运行 demo | 3–5d | 导出选路不定 → **已启动（2026-11-15）：`tauri-spike` 分支脚手架已落地，待 Rust 工具链安装后编译跑通**（§8） |
+| **P0 Spike** | 脚手架：Tauri 2 + Vite/Vue 打通；验证「文件读 + 窗口控制 + mdimg 替换 + 导出（PDF/PNG 选路）」四件事能跑通 | 可行性结论 + 最小可运行 demo | 3–5d | ✅ **已完成（2026-11-15）：6 项验收全绿，导出选路定为客户端 jspdf/html2canvas（§4.1），全量迁移可行** |
 | **P1 后端契约** | 用 Rust 重建 §3 中 #1–#12、#23、#25（文件/草稿/历史/图片/Shell/搜索/设置/主题/窗口/拖拽） | 全部 `invoke()` 可用 | 1–2 周 | 低 |
 | **P2 外壳** | #14–#16 窗口控制 + 原生菜单 + 单实例 + 文件关联 | 菜单/单实例/主题跟随 | 3–5d | 低 |
 | **P3 图片协议** | #17 `mdimg://` → asset 协议（parser + PreviewPane） | 本地图正常显示 | 1–2d | 低 |
@@ -175,13 +181,13 @@ Electron 用 `contextBridge` 一次性暴露全部 API；Tauri 2 用 **capabilit
 | **P6 打包发布** | Tauri bundler（Windows NSIS/MSI via WiX）、Authenticode + minisign 双签名、跨 WebView QA（WebView2 主测；mac/linux 抽测） | 可下载安装包 | 1 周 | 中（签名/QA） |
 | **P7 切换** | 独立分支合并 / 或并行维护；复测性能基线 | 发布候选 | 2–3d | 低 |
 
-**总计：约 6–10 周（单人）。** 导出专项（P5）与签名/QA（P6）是主要不确定来源；若 P0 Spike 选定导出方案 B 且打包机具备 Chrome，则落在 6–7 周下端；若导出降级到 A 或需捆绑 Chromium，则贴近 10 周。
+**总计：约 6–9 周（单人）。** 导出专项（P5）风险已随客户端方案（§4.1）下调为中等；签名/QA（P6）仍是主要不确定来源。
 
 ---
 
 ## 6. 建议路径（不迎合，从工程与体验出发）
 
-1. **先做 P0 Spike（独立分支 `tauri-spike`），不做全量迁移决策。** 验证四件事：①Rust 文件 I/O 边界跑通 Vue 调用；②窗口控制 + 菜单 + 单实例；③`mdimg→asset` 图片显示；④导出的 PDF/PNG 选哪条路能达标。**导出选路结论出来前，不要投入 P1–P7。**
+1. **P0 Spike 已完成（独立分支 `tauri-spike`，2026-11-15 验收通过）。** 验证四件最难的事全部跑通，导出选路定为客户端 `jspdf`+`html2canvas`（§4.1），**全量迁移可行 → P1–P7 可启动**。
 2. **Tauri 与前端性能计划并行不悖、互不替代。** 性能计划 `docs/performance-optimization-plan.md` 的 P0–P3 是 WebView 内 JS 活，Tauri 下照样要做。可先在当前 Electron 分支把前端性能做完，Tauri 只负责「换底」。
 3. **若目标是发行体积 / 内存 / 启动 / 安全 / 未来移动端 → Tauri 值得**，且 Windows 主战场渲染一致性风险低，迁移红利明确（更小的包、asset 协议、应用内弹窗、默认安全）。
 4. **若团队短期只想解决卡顿、或人力紧张 → 不建议现在换**，优先推进前端性能计划，Tauri 作为期权保留。
@@ -214,11 +220,15 @@ Electron 用 `contextBridge` 一次性暴露全部 API；Tauri 2 用 **capabilit
 
 **实施状态**
 - ✅ 已完成：`tauri-spike` 分支建立；`src-tauri/` 脚手架（Cargo.toml / tauri.conf.json / capabilities / Rust commands 含 P1 大文件守卫语义 / `spike-ui/` 验证页）；契约面复审（§1.1）。
-- ✅ **Rust 端编译通过（2026-11-15）**：`cargo build` 干净产出 `target/debug/mdev.exe`（13.8MB），证明 FFI 契约、`tauri.conf.json` 配置、权限校验、6 个自定义命令（`greet`/`read_text_file`/`write_text_file`/`list_dir`/`exists`/`resolve_path`）、图标嵌入全部合法。
-- ⏳ 阻塞项（边界）：本沙箱无 GUI，**无法在此打开窗口跑四步清单**；需用户在桌面端 `npx @tauri-apps/cli dev` 验收。
-- **四步验证清单（spike 验收标准，桌面端执行）**：
-  1. **文件 I/O**：spike 页输入任意本地 .md 路径 → `invoke('read_text_file')` 返回内容 + `isLarge/truncated` 标记正确（拿 >20MB 文件验证守卫语义）。
-  2. **asset 协议图片**：输入本地图路径 → `convertFileSrc` 后 `<img>` 正常显示（替代 `mdimg://` 的可行性）。
-  3. **对话框**：`window.__TAURI__.dialog.open()` 选文件/文件夹正常。
-  4. **导出选路（§4.1）**：确认本机 Chrome → CDP `Page.printToPDF` 方案 B 可行性；不可行则评估方案 A。**此项结论决定是否全量迁移。**
-- **桌面端跑法**：`git checkout tauri-spike` → `cd src-tauri` → `npx @tauri-apps/cli dev`（首次会从 npm 拉 CLI；`tauri.conf.json` 无 `devUrl`，Tauri 2 会直接静态托管 `frontendDist=../spike-ui`，无需另起 dev server）。
+- ✅ **Rust 端编译通过（2026-11-15）**：`cargo check/build` 干净产出 `target/debug/mdev.exe`（13.8MB），证明 FFI 契约、`tauri.conf.json` 配置、权限校验、7 个自定义命令（`greet`/`read_text_file`/`write_text_file`/`list_dir`/`exists`/`resolve_path`/`pick_file`）＋ 图标嵌入全部合法。
+- ✅ **四步清单桌面端验收通过（2026-11-15）**：用户在桌面端 `npm run tauri dev` 验收，**6 项全绿**（greet / 文件 I/O 守卫 / 列目录 / 存在性+路径解析 / asset 图片 / 对话框）。**导出选路结论见下，全量迁移可行。**
+- **四步验证清单（已验收）**：
+  1. ✅ **文件 I/O**：`invoke('read_text_file')` 返回内容 + `isLarge/truncated` 标记正确（>20MB 验证守卫语义）。
+  2. ✅ **asset 协议图片**：`convertFileSrc` 后 `<img>` 正常显示（替代 `mdimg://` 可行）。
+  3. ✅ **对话框**：经 Rust `pick_file` 命令（`tauri-plugin-dialog` 的 Rust API）选文件正常——`withGlobalTauri` 下插件 JS 不会挂到 `window.__TAURI__.dialog`，故走 Rust 命令更稳。
+  4. ✅ **导出选路（§4.1）**：**本机有 Chrome，但终端用户不能假定装有 Chrome → 排除 CDP 方案 B**；定为客户端 `jspdf`+`html2canvas`（方案 E）。**此项开关结论 = 全量迁移可行。**
+- **spike 实现教训（供 P1 复用）**：
+  - `withGlobalTauri: true` 注入的全局是 **`window.__TAURI__`**（两尾下划线），不是 `window.__TAURI`；验证台首版即栽在此，已修。
+  - 插件（`tauri-plugin-dialog` 等）**不会**挂到 `window.__TAURI__.xxx`；需 `import '@tauri-apps/plugin-*'` 或（如本 spike）直接用 Rust command 调插件 Rust API。
+  - `tauri-plugin-dialog` 2.8 API 为回调式 `pick_file(f)` / 阻塞式 `blocking_pick_file()`，无 async 版。
+- **桌面端跑法（已更新）**：`git checkout tauri-spike` → 在项目根目录（非 `src-tauri` 内）执行 `npm run tauri dev`（`package.json` 已加 `@tauri-apps/cli` devDep + `tauri` script）；`tauri.conf.json` 无 `devUrl`，Tauri 2 直接静态托管 `frontendDist=../spike-ui`。

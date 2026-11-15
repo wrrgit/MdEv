@@ -12,7 +12,8 @@
     "build:electron": "cross-env ELECTRON=true vite build",
     "package": "npm run build:electron && electron-builder --win portable",
     "make": "npm run build:electron && electron-builder --win nsis",
-    "start": "electron ."
+    "start": "electron .",
+    "tauri": "tauri"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.12.0",
@@ -59,7 +60,8 @@
     "vite": "^5.4.0",
     "vite-plugin-electron": "^0.28.0",
     "vite-plugin-electron-renderer": "^0.14.0",
-    "wait-on": "^8.0.0"
+    "wait-on": "^8.0.0",
+    "@tauri-apps/cli": "^2.12.4"
   },
   "build": {
     "appId": "com.mdev.editor",
