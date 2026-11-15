@@ -11,7 +11,7 @@
 - **性能上 Tauri 赢在体积 / 内存 / 启动，但救不了前端 JS 层的卡顿。** 那份性能计划里的 P0–P3（切标签丢状态、预览整篇同步渲染、大文件滚动）全是 WebView 内 JavaScript 的问题，Tauri 的 Rust 后端不会让 JS 跑更快。换 Tauri ≠ 免做前端性能优化（该计划已在 Electron 主线全部完成，迁移后整段继承）。
 - **导出（PDF / PNG）= 原最大风险点，已定案并落地。** Electron 用隐藏 `BrowserWindow` + `printToPDF()` / `capturePage()`，Tauri 2 没有 1:1 等价物；定案改用渲染端 `jspdf` + `html2canvas` 客户端导出、HTML 走 Rust 写文件（`exportUtils.js` 纯逻辑层 + Rust `save_blob` async/`spawn_blocking`）——**不再依赖任何外部 Chrome**，全量迁移可行。已知限制：栅格导出对 KaTeX / mermaid 等复杂节点的保真度低于 Electron 矢量方案（§4.1、§5.1）。
 - **第二大改动面 = 自定义 HTML 弹窗 + `mdimg://` 图片协议，均已落地。** 前者改为应用内 Vue 弹窗（`TauriDialog.vue` + `dialogHost.js` + 契约纯逻辑 `dialogModel.js`），后者改走 Tauri asset 协议（`localImageUrl.js`，主线程 DOMPurify 净化后重写）。
-- **预估工作量：6–9 周（单人）。** 导出专项风险已随客户端方案下调（§4.1）。**实际结果：P0–P6 已于 2026-11-15 在 `tauri-spike` 分支完成并成功出包（NSIS 安装包 5.79 MiB）；P7（合并 `master` / 对外发版）待用户决策**——状态与产物路径见 §5.1、§8。
+- **预估工作量：6–9 周（单人）。** 导出专项风险已随客户端方案下调（§4.1）。**实际结果：P0–P6 已于 2026-11-15 在 `tauri-spike` 分支完成并成功出包（NSIS 安装包 5.80 MiB）；P7（合并 `master` / 对外发版）待用户决策**——状态与产物路径见 §5.1、§8。
 
 > **复审（2026-11-15 第三次修订）**：① 前端性能计划 **P0–P5 已全部完成并随 v0.8.0 安装版发布**，迁移时整段继承、无需重做（增量影响见 §4.6）；② 契约面按当前代码实证为 **19 文件 / 136 处调用 / preload 顶层 49 个 API**（§1.1）；③ 本机环境实测：WebView2 ✅、Node ✅、**Rust 1.100.0 msvc ✅、MSVC 14.50 ✅**（工具链已装，§8）；④ `tauri-spike` 分支已完成 P0–P6：`frontendDist=../dist`、`devUrl=http://localhost:5173`、`npm run tauri build` 已产出可安装 NSIS 包；⑤ 沙箱无 GUI，桌面端交互验收仍需用户在真实窗口执行（§7 清单）。
 
@@ -199,7 +199,7 @@ Electron 用 `contextBridge` 一次性暴露全部 API；Tauri 2 用 **capabilit
 | **P3 图片协议** | #17 `mdimg://` → asset 协议（parser + PreviewPane） | 本地图正常显示 | 1–2d | ✅ **已完成**（`b42c7b4`）：见 §4.3；净化链路单测全绿 |
 | **P4 弹窗改造** | #18–#20 输入/表单/表格/确认弹窗改应用内 Vue 组件 | 去掉 4 个裸窗口通道 | 3–5d | ✅ **已完成**（`24ac778`）：见 §4.4；契约纯逻辑 8/8 单测通过 |
 | **P5 导出** | #21–#22 PDF / PNG 选路实现 | 三种导出等价 | 1–2 周 | ✅ **已完成**（`e869b44`）：客户端导出 + Rust `save_blob`；修死锁与返回值吞掉；纯逻辑 10/10 单测通过。**保真度为已知限制** |
-| **P6 打包发布** | Tauri bundler（NSIS）、文件关联、发布者信息 | 可下载安装包 | 1 周 | ✅ **已完成出包**（`33174b0`）：`MdEv_0.8.0_x64-setup.exe` 5.79 MiB。⚠️ **Authenticode + minisign 双签名、跨 WebView QA 未做**（需用户提供证书/密钥，见 §5.1） |
+| **P6 打包发布** | Tauri bundler（NSIS）、文件关联、发布者信息 | 可下载安装包 | 1 周 | ✅ **已完成出包**（`33174b0`）：`MdEv_0.8.0_x64-setup.exe` 5.80 MiB。⚠️ **Authenticode + minisign 双签名、跨 WebView QA 未做**（需用户提供证书/密钥，见 §5.1） |
 | **P7 切换** | 独立分支合并 / 并行维护；复测性能基线 | 发布候选 | 2–3d | ⏸ **待用户决策**：合并 `master`、发 GitHub Release、TDZ 修复同步、签名/updater 配置，均未擅自执行 |
 
 **总计：评估 6–9 周（单人）；P0–P6 实际已于 2026-11-15 在同一天逐阶段完成并出包。** 需明确：这是「代码 + 构建产物」层面的完成，**不等于发布就绪**——桌面端 GUI 验收、双签名、跨 WebView QA 三项仍开放。
@@ -222,8 +222,8 @@ Electron 用 `contextBridge` 一次性暴露全部 API；Tauri 2 用 **capabilit
 
 | 文件 | 大小 | 校验 |
 |---|---|---|
-| `src-tauri/target/release/mdev.exe` | 12,252,160 B / 11.68 MiB | `index.html` 引用的 4 个主 chunk 均能在 exe 中检索到，前端 dist 确已嵌入；新 logo 的 6 帧 ICO 全部可检索 |
-| `src-tauri/target/release/bundle/nsis/MdEv_0.8.0_x64-setup.exe` | 6,072,171 B / **5.79 MiB** | PE 头 `MZ`；NSIS 脚本 4 个 `APP_ASSOCIATE` 注册扩展名，卸载含对应 `APP_UNASSOCIATE`；安装/卸载程序图标、欢迎页侧图、内页头图均为正式 logo |
+| `src-tauri/target/release/mdev.exe` | 12,297,216 B / 11.73 MiB | `index.html` 引用的 4 个主 chunk 均能在 exe 中检索到，前端 dist 确已嵌入；新 logo 的 6 帧 ICO 全部可检索 |
+| `src-tauri/target/release/bundle/nsis/MdEv_0.8.0_x64-setup.exe` | 6,079,950 B / **5.80 MiB** | PE 头 `MZ`；NSIS 脚本 4 个 `APP_ASSOCIATE` 注册扩展名，卸载含对应 `APP_UNASSOCIATE`；安装/卸载程序图标、欢迎页侧图、内页头图均为正式 logo；含可取消的「设为 .md 默认打开程序」勾选页 |
 | `dist/`（干净重建） | 126 文件 / 9.9 MB | `MDEV_KEEP_DIST=1` 反复构建曾累积到 763 文件 / 54 MB、安装包虚胖 14.74 MiB；移走旧 dist 后重建恢复 |
 
 **最终回归（2026-11-15）**：`cargo check` 0 error / 0 warning；`vite build` 成功且 dist 保持 126 文件；release `tauri build` 成功；纯逻辑 + jsdom 冒烟 **32/32 PASS**（弹窗契约 8、导出保真 7、拖拽去重 6、图片协议与净化链路 7、`window.api` 垫片安装 4）。
@@ -256,6 +256,35 @@ Electron 用 `contextBridge` 一次性暴露全部 API；Tauri 2 用 **capabilit
 
 **产物验证（重建后实测）**：`target/release/nsis/x64/installer.nsi` 的 `INSTALLERICON` / `UNINSTALLERICON` / `SIDEBARIMAGE` / `HEADERIMAGE` / `UNINSTALLERHEADERIMAGE` 五个 `!define` 全部指向上述绝对路径（此前为空、走 NSIS 默认图），对应的 `MUI_ICON` / `MUI_UNICON` / `MUI_WELCOMEFINISHPAGE_BITMAP` / `MUI_HEADERIMAGE_BITMAP` / `MUI_HEADERIMAGE_UNBITMAP` 均已启用；在 `mdev.exe` 与 `setup.exe` 中都能检索到新 ICO 的全部 6 帧数据（含 256×256 PNG 帧），旧蓝色占位图特征计数为 0；4 个 `APP_ASSOCIATE` 未受影响；`dist` 干净重建仍为 126 文件 / 9.9 MB。
 
+### 5.3 大文件渲染回归、共用缺陷与安装向导勾选项（2026-11-15 晚补齐）
+
+**现象**：打开约 1MB 的 Markdown 时预览长时间显示「渲染中…」，Tauri 版体感慢于 Electron 版。
+
+**根因（实测，不靠猜测）**：`PreviewPane.vue` 的 `isRendering` 在每次 `renderNow()` 开头无条件置 true；`parseMarkdown` 虽已把 markdown-it 解析移进 Web Worker，**DOMPurify.sanitize 仍在主线程同步净化整篇 HTML**。jsdom 基准（0.90MB HTML）：整篇净化单次连续阻塞 **1.1–1.2 秒**；`classifyContent` 把 0.84MB / 22401 行的文档判为 `large`（阈值 600k 字符 / 2 万行），仍走整篇渲染，因此 UI 冻结期间「渲染中…」一直挂着。
+
+Tauri 特有开销经测量很小，**不是主要差异来源**：`rewriteLocalImageUrls` 全文正则扫描 3.7ms（Electron 下 no-op 0.12ms）；1MB 返回体的 `JSON.stringify` + `JSON.parse` 合计约 4.3ms。真正放大体感的是两个确定性缺陷：① `read_file` / `write_file` 写成同步 `#[tauri::command]`，读取、UTF-8 转换与 JSON 序列化占住主线程消息循环（与此前修好的 dialog 死锁同类）；② `watch(activeTabId)` 命中预览缓存后仍无条件 `renderNow(true)` 全量重解析。
+
+**修复（共用前端，已同步 master）**
+
+| 改动 | 文件 | 效果与验证 |
+|---|---|---|
+| 分帧净化 | 新增 `src/core/markdown/sanitizeChunks.js`、`parser.js` | 按「顶层闭合块」边界切分，逐段净化并在段间让出主线程；不在 `<pre>` / `<table>` / `<math>` / 嵌套容器内部切。最大单次阻塞约 1.2s → 140ms 量级，总耗时持平（基准波动 ±15%）。**19/19 单测通过，含「分片结果与整篇净化逐字节一致」、script 拦截、mdimg 放行** |
+| 加载指示延迟 200ms | `PreviewPane.vue` | 小文件不再闪「渲染中…」，只有真耗时的大文件才提示 |
+| 缓存命中跳过重渲染 | `PreviewPane.vue` | 修 `renderNow(force)` 死参数；命中缓存且内容未变时跳过整篇解析；无缓存时强制渲染，避免沿用上一标签内容 |
+| 缓存 HTML 字符串 | `PreviewPane.vue` | 缓存净化后的字符串，不再对万级节点做 `previewContent.innerHTML` 整篇序列化 |
+| Worker 看门狗 8s → 3s | `previewClient.js` | Worker 静默失效时不再干等 8 秒；超时即废弃 Worker，避免每次渲染重复等待 |
+| 补 `tab.truncated` | `useOpenFile.js` | 修高危数据丢失缺陷（见下） |
+| 文件 I/O 移出主线程 | `src-tauri/src/lib.rs` | `read_file` / `write_file` 改 `async fn` + `spawn_blocking`，`cargo check` 0 error / 0 warning |
+
+**master 上同样存在、已逐项同步修复的 bug**
+
+1. **TDZ 白屏（启动级）**：`EditorPane.vue` 的 `baseExtensions` 数组在 setup 求值时引用 `languageCompartment.of(markdownExt)`，而这两个 `const` 原本声明在其后 → `ReferenceError: Cannot access ... before initialization`，整个 Vue app 挂载失败、界面空白且按钮无响应。`tauri-spike` 的 `1f94ad2` 已修，master 一直未修。
+2. **截断文件可写回（高危，可致不可逆数据丢失）**：`finalizeOpen` 只写 `isLargeFile` / `truncatedBytes`，**从未写 `tab.truncated`**；而 `EditorPane.vue` 的 `:disabled`、`useAutoSave.js` 的只读保护、`PreviewPane.vue` 的截断横幅全都读 `tab.truncated`。结果 >150MB 文件只读取前 20MB 后，编辑器仍可编辑，自动保存会把 20MB 内容写回原盘并截断其余数据。
+3. **大文件主线程冻结**（上述「渲染中…」根因）。
+4. **预览缓存命中仍全量重解析、加载指示无条件闪烁、Worker 8 秒干等**。
+
+**安装向导勾选项**：Tauri NSIS 默认模板没有「设为 .md 默认打开程序」勾选项，而 electron-builder 版 `build/installer.nsh` 原本就有。现用 `bundle.windows.nsis.template` 指向从 CLI 内置官方模板提取并最小定制的 `src-tauri/nsis/installer.nsi`：在 `MUI_PAGE_INSTFILES` 之前插入 nsDialogs 勾选页（安装向导最后一项，默认勾选、可取消；静默/被动安装不弹页也不擅自改默认），安装 Section 按勾选写 HKCU 关联，卸载 Section 仅在 `.md` 默认值仍为 `MdEv.md` 时反注册，绝不误删其他程序的关联。
+
 ---
 
 ## 6. 建议路径（不迎合，从工程与体验出发）
@@ -263,7 +292,7 @@ Electron 用 `contextBridge` 一次性暴露全部 API；Tauri 2 用 **capabilit
 1. **P0–P6 已完成（独立分支 `tauri-spike`，2026-11-15 出包成功）。** 已在真实 Vue 前端上跑通全量契约，导出定案客户端 `jspdf`+`html2canvas`（§4.1）；产物与逐阶段验证见 §5.1。**分支与 `master` 完全隔离，随时可丢弃，Electron 主线不受影响。**
 2. **下一步只做一件事：桌面端 GUI 验收（§7 清单），再决定是否 P7。** 沙箱能验证编译、构建、纯逻辑与产物内容，但**验证不了 WebView2 里的真实交互**；在用户验收全绿前，不建议合并 `master` 或发 GitHub Release。
 3. **Tauri 与前端性能计划并行不悖、互不替代。** 性能计划 `docs/performance-optimization-plan.md` 的 P0–P5 已在 Electron 主线全部完成并发布 v0.8.0，迁移后整段继承（§4.6）；Tauri 只负责「换底」，不替代 JS 层优化。
-4. **若目标是发行体积 / 内存 / 启动 / 安全 / 未来移动端 → Tauri 值得**，且 Windows 主战场渲染一致性风险低，迁移红利明确（5.79 MiB 安装包、asset 协议、应用内弹窗、默认安全）。
+4. **若目标是发行体积 / 内存 / 启动 / 安全 / 未来移动端 → Tauri 值得**，且 Windows 主战场渲染一致性风险低，迁移红利明确（5.80 MiB 安装包、asset 协议、应用内弹窗、默认安全）。
 5. **若短期只想解决卡顿、或人力紧张 → 不必急于切换**：v0.8.0 Electron 版已含全部性能成果，可把 `tauri-spike` 作为期权保留，等 GUI 验收 + 签名证书齐备再发版。
 6. **P7 的前置条件**：① §7 清单桌面端全绿；② 决定签名方案（Authenticode 证书 + minisign 密钥）或明确「暂不签名」；③ 决定是否把 `1f94ad2` 的 TDZ 修复单独回灌 `master`（该隐患在 `master` 同样存在）；④ 跨 WebView QA 排期。
 
@@ -275,7 +304,7 @@ Electron 用 `contextBridge` 一次性暴露全部 API；Tauri 2 用 **capabilit
 
 | 基线项 | 目标 | 当前结果 |
 |---|---|---|
-| 安装包体积 | ≤ 15 MB | ✅ **5.79 MiB**（NSIS）；主程序 `mdev.exe` 12.25 MB |
+| 安装包体积 | ≤ 15 MB | ✅ **5.80 MiB**（NSIS）；主程序 `mdev.exe` 12.30 MB |
 | 冷启动 | < 1s | ⏳ 未测：需桌面端秒表实测 |
 | 开 30 文件空闲内存 | 显著低于现版 | ⏳ 未测：需桌面端任务管理器 / 性能面板 |
 | 功能等价（文件树/编辑/预览/搜索/历史/三种导出/设置/主题/单实例） | 全部等价 | ⏳ 代码与构建层面完成，**GUI 交互未验收**（清单见下） |
@@ -322,7 +351,7 @@ Electron 用 `contextBridge` 一次性暴露全部 API；Tauri 2 用 **capabilit
 - ✅ **真实前端已接入 Tauri**：不再是 `spike-ui` 验证页，而是项目真实 Vue 前端。`tauri.conf.json` 现为 `frontendDist=../dist`、`devUrl=http://localhost:5173`、`beforeDevCommand=npm run dev`、`beforeBuildCommand=npm run build`；`decorations:false`、`withGlobalTauri:true`、`assetProtocol.scope=["**"]`。
 - ✅ **契约层**：`src-tauri/src/lib.rs` 36 个 `#[tauri::command]` 全部注册进 `invoke_handler!`，覆盖 `electron/preload.cjs` 顶层 49 个 API（含大文件读取守卫语义）；`src/api/tauriApi.js` 用 `invoke` + `event.listen` 安装 `window.api`，渲染端 136 处调用点不改。Electron 构建下垫片为 no-op，不覆盖 preload。
 - ✅ **打包配置**：`bundle.targets=["nsis"]`、`fileAssociations` 关联 `.md/.markdown/.mdown/.mdx`、`installMode="both"`、publisher/copyright/category；未写假的签名或 updater 段。
-- ✅ **出包成功**：`src-tauri/target/release/bundle/nsis/MdEv_0.8.0_x64-setup.exe`（5.79 MiB），主程序 `mdev.exe` 12.25 MB 内嵌当前 dist chunk，NSIS 脚本 4 个 `APP_ASSOCIATE` + 对应卸载反注册。
+- ✅ **出包成功**：`src-tauri/target/release/bundle/nsis/MdEv_0.8.0_x64-setup.exe`（5.80 MiB），主程序 `mdev.exe` 12.30 MB 内嵌当前 dist chunk，NSIS 脚本 4 个 `APP_ASSOCIATE` + 对应卸载反注册。
 
 **过程中修掉的真实缺陷（按时间序）**
 1. `window.__TAURI` → **`window.__TAURI__`**（两尾下划线）；插件 JS 不挂全局，对话框改走 Rust command。

@@ -52,9 +52,14 @@ export function renderInWorker(content, context) {
     entry.timer = setTimeout(() => {
       if (pending.get(id) === entry) {
         pending.delete(id)
+        // 8s 看门狗过长：Worker 静默失效时用户会盯着「渲染中…」等 8 秒。
+        // 3s 内无响应即判定不可用，废弃 Worker 避免后续每次渲染都重复等待。
+        console.warn('[MdEv] preview worker 3s 无响应，已回落主线程解析')
+        try { w.terminate() } catch { /* 已销毁 */ }
+        worker = null
         renderRawMarkdown(content, context).then(resolve, reject)
       }
-    }, 8000)
+    }, 3000)
     pending.set(id, entry)
     try {
       w.postMessage({ id, content, context })

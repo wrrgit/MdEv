@@ -250,41 +250,51 @@ fn get_native_theme() -> String {
 }
 
 /// 对应 Electron `file:read`（含 P1 大文件守卫语义）
+/// 同步 command 跑在 Tauri 主线程；1MB+ 文件的读取、UTF-8 转换与 JSON 序列化会占住
+/// 消息循环，与已修的 dialog 同类问题，故改为 async + spawn_blocking。
 #[tauri::command]
-fn read_file(path: String) -> Value {
-    let p = Path::new(&path);
-    let size = match fs::metadata(p) {
-        Ok(m) => m.len(),
-        Err(e) => return json!({ "success": false, "error": e.to_string() }),
-    };
-    let is_large = size > LARGE_FILE_THRESHOLD;
-    if size > FULL_READ_CAP {
-        match read_limited(p, PARTIAL_READ) {
-            Ok(content) => json!({
-                "success": true, "content": content, "size": size,
-                "isLarge": true, "truncated": true, "truncatedBytes": PARTIAL_READ
-            }),
-            Err(e) => json!({ "success": false, "error": e.to_string() }),
+async fn read_file(path: String) -> Value {
+    tauri::async_runtime::spawn_blocking(move || {
+        let p = Path::new(&path);
+        let size = match fs::metadata(p) {
+            Ok(m) => m.len(),
+            Err(e) => return json!({ "success": false, "error": e.to_string() }),
+        };
+        let is_large = size > LARGE_FILE_THRESHOLD;
+        if size > FULL_READ_CAP {
+            match read_limited(p, PARTIAL_READ) {
+                Ok(content) => json!({
+                    "success": true, "content": content, "size": size,
+                    "isLarge": true, "truncated": true, "truncatedBytes": PARTIAL_READ
+                }),
+                Err(e) => json!({ "success": false, "error": e.to_string() }),
+            }
+        } else {
+            match fs::read(p) {
+                Ok(bytes) => json!({
+                    "success": true,
+                    "content": String::from_utf8_lossy(&bytes).into_owned(),
+                    "size": size, "isLarge": is_large, "truncated": false, "truncatedBytes": size
+                }),
+                Err(e) => json!({ "success": false, "error": e.to_string() }),
+            }
         }
-    } else {
-        match fs::read(p) {
-            Ok(bytes) => json!({
-                "success": true,
-                "content": String::from_utf8_lossy(&bytes).into_owned(),
-                "size": size, "isLarge": is_large, "truncated": false, "truncatedBytes": size
-            }),
-            Err(e) => json!({ "success": false, "error": e.to_string() }),
-        }
-    }
+    })
+    .await
+    .unwrap_or_else(|e| json!({ "success": false, "error": e.to_string() }))
 }
 
-/// 对应 Electron `file:write`
+/// 对应 Electron `file:write`（同样移出主线程，避免大文档保存时占住消息循环）
 #[tauri::command]
-fn write_file(path: String, contents: String) -> Value {
-    match fs::write(Path::new(&path), contents.as_bytes()) {
-        Ok(_) => json!({ "success": true }),
-        Err(e) => json!({ "success": false, "error": e.to_string() }),
-    }
+async fn write_file(path: String, contents: String) -> Value {
+    tauri::async_runtime::spawn_blocking(move || {
+        match fs::write(Path::new(&path), contents.as_bytes()) {
+            Ok(_) => json!({ "success": true }),
+            Err(e) => json!({ "success": false, "error": e.to_string() }),
+        }
+    })
+    .await
+    .unwrap_or_else(|e| json!({ "success": false, "error": e.to_string() }))
 }
 
 /// 对应 Electron `file:readdir`（嵌套树，返回 `{ success, tree }`）

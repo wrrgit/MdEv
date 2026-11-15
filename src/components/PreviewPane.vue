@@ -57,11 +57,13 @@ let previewHtmlDirty = false
 // 切回已渲染过的标签时同步命中缓存瞬时还原（0ms 白屏），再后台异步重渲染以吸纳外部/草稿变更。
 // 超大文件仅缓存首屏块（避免缓存随分块无限增长），其余按需加载。
 const PREVIEW_CACHE_LIMIT = 12
-const previewCache = new Map() // tabId -> html 字符串
-function cachePreview(id, html) {
+const previewCache = new Map() // tabId -> { html, content }
+function cachePreview(id, html, content) {
   if (!id || html == null) return
   if (previewCache.has(id)) previewCache.delete(id)
-  previewCache.set(id, html)
+  // 直接缓存净化后的 HTML 字符串，不再序列化整个预览 DOM（万级节点时是纯浪费）。
+  // 同时记住对应内容，切回标签时才能判断缓存是否仍然有效。
+  previewCache.set(id, { html, content })
   while (previewCache.size > PREVIEW_CACHE_LIMIT) {
     previewCache.delete(previewCache.keys().next().value)
   }
@@ -238,8 +240,25 @@ const fileTier = ref('normal')
 const isRendering = ref(false)
 const previewPaused = ref(false)
 let renderTimer = null
+// 加载指示延迟 200ms 才出现：绝大多数小文件在 200ms 内渲染完，避免「渲染中…」闪一下；
+// 只有真正耗时的大文件才提示，且此时净化已分帧、界面仍可响应。
+let renderIndicatorTimer = null
+function beginRenderIndicator() {
+  if (renderIndicatorTimer) return
+  renderIndicatorTimer = setTimeout(() => {
+    renderIndicatorTimer = null
+    isRendering.value = true
+  }, 200)
+}
+function endRenderIndicator() {
+  if (renderIndicatorTimer) {
+    clearTimeout(renderIndicatorTimer)
+    renderIndicatorTimer = null
+  }
+  isRendering.value = false
+}
 let renderSeq = 0 // P2：渲染序号，仅应用最新一次结果，丢弃 Worker 返回过期的旧渲染
-let renderedContent = '' // 已渲染内容快照，用于去重（避免切标签触发的冗余重渲染）
+let renderedContent = null // 已渲染内容快照（null 表示尚未渲染；空文档也需要渲染一次占位提示）
 
 function recomputeTier() {
   const c = store.activeTab ? store.content : ''
@@ -403,20 +422,24 @@ async function loadNextChunk() {
 async function renderNow(force = false) {
   if (!store.activeTab) {
     applyPreviewHtml('', false)
-    renderedContent = ''
+    renderedContent = null
     previewPaused.value = false
     hugeRendered.value = 0
     hugeChunks.value = []
+    endRenderIndicator()
     return
   }
   // 编辑模式不渲染预览
   if (store.settings.viewMode === 'edit') return
+  // 内容未变化（例如切回命中缓存的标签）直接跳过整篇重解析；
+  // force=true 用于手动刷新与视图模式切换，此时即使内容相同也要重渲染。
+  if (!force && store.content === renderedContent) return
   if (renderTimer) {
     clearTimeout(renderTimer)
     renderTimer = null
   }
   const mySeq = ++renderSeq
-  isRendering.value = true
+  beginRenderIndicator()
   try {
     if (fileTier.value === 'huge') {
       // P3：超大文件始终先渲染首屏块（有预览、不卡死），其余按需加载；force 不再触发整篇解析
@@ -438,11 +461,11 @@ async function renderNow(force = false) {
       await nextTick()
       if (mySeq !== renderSeq) return
       setupMermaidLazy(); rebuildOverlays(); applySearchHighlights(); setupLazyImages(); restorePreviewScroll()
-      // P4：缓存整篇 HTML，切回该标签时瞬时还原
-      cachePreview(store.activeTabId, previewContent.value ? previewContent.value.innerHTML : '')
+      // P4：缓存净化后的 HTML 字符串，切回该标签时瞬时还原
+      cachePreview(store.activeTabId, html, store.content)
     }
   } finally {
-    if (mySeq === renderSeq) isRendering.value = false
+    if (mySeq === renderSeq) endRenderIndicator()
   }
 }
 
@@ -481,15 +504,19 @@ watch(() => store.activeTabId, () => {
   // P4：stale-while-revalidate——命中缓存则瞬时还原上次预览（消除切标签白屏），
   // 再后台 renderNow 异步刷新（吸纳外部/草稿变更）。无缓存则直接渲染。
   const cached = previewCache.get(store.activeTabId)
-  if (cached != null && store.settings.viewMode !== 'edit') {
+  const cacheHit = cached != null && store.settings.viewMode !== 'edit'
+  if (cacheHit) {
     imageObserver?.disconnect(); imageObserver = null
-    applyPreviewHtml(cached, false)
+    applyPreviewHtml(cached.html, false)
+    renderedContent = cached.content
     previewPaused.value = false
     hugeRendered.value = 0
     hugeChunks.value = []
     nextTick(() => { rebuildOverlays(); applySearchHighlights(); setupLazyImages(); restorePreviewScroll() })
   }
-  renderNow(true)
+  // 命中缓存且内容未变时 renderNow 自行跳过，不再整篇重解析；
+  // 无缓存则强制渲染，避免沿用上一个标签的内容快照。
+  renderNow(!cacheHit)
 })
 
 // 视图模式切换：回到非编辑模式时补一次渲染（编辑模式期间跳过了渲染）

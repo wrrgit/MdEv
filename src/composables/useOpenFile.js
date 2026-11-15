@@ -31,9 +31,13 @@ function finalizeOpen(filePath, result) {
   const id = store.addTab(filePath, result.content, fileNameOf(filePath))
   const tab = store.tabs.find(t => t.id === id)
   if (tab) {
-    if (result.isLarge || result.truncated) {
-      tab.isLargeFile = true
-      if (result.truncated) tab.truncatedBytes = result.truncatedBytes
+    if (result.isLarge || result.truncated) tab.isLargeFile = true
+    // 必须写 tab.truncated：EditorPane 的 disabled、useAutoSave 的只读保护、
+    // PreviewPane 的截断横幅都读这个字段。只写 truncatedBytes 会让截断文件仍可编辑，
+    // 并被自动保存把前 20MB 写回原盘，造成不可逆的数据截断。
+    if (result.truncated) {
+      tab.truncated = true
+      tab.truncatedBytes = result.truncatedBytes
     }
   }
   store.addRecentFile(filePath)
