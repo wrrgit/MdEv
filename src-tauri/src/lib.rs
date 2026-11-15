@@ -56,7 +56,7 @@ pub struct SimpleResult {
 
 /// 只读前 `max_bytes` 字节（对应 Electron `readFile(path, { start, end })` 的部分读取）
 fn read_limited(path: &Path, max_bytes: u64) -> std::io::Result<String> {
-    let mut f = fs::File::open(path)?;
+    let f = fs::File::open(path)?;
     let mut buf = Vec::with_capacity(max_bytes as usize);
     f.take(max_bytes).read_to_end(&mut buf)?;
     Ok(String::from_utf8_lossy(&buf).into_owned())

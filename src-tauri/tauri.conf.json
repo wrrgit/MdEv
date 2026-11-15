@@ -6,6 +6,12 @@
   "build": {
     "frontendDist": "../spike-ui"
   },
+  "bundle": {
+    "icon": [
+      "icons/icon.ico",
+      "icons/icon.png"
+    ]
+  },
   "app": {
     "withGlobalTauri": true,
     "windows": [

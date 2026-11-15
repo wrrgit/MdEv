@@ -208,15 +208,17 @@ Electron 用 `contextBridge` 一次性暴露全部 API；Tauri 2 用 **capabilit
 |---|---|---|
 | WebView2 Runtime | ✅ 157.0.4341.46 | Tauri on Windows 的渲染内核已就绪 |
 | Node.js | ✅ v22.22.2 | 前端构建可用 |
-| Rust / Cargo | ❌ 未安装 | spike 编译的硬前置 |
-| rustup | ❌ 未安装 | — |
-| MSVC Build Tools | ❌ 未安装（`cl.exe` 不在 PATH） | Rust `x86_64-pc-windows-msvc` 目标必需；用 VS Installer 装「使用 C++ 的桌面开发」工作负载，约 2–4GB，需管理员权限 |
+| Rust / Cargo | ✅ 1.100.0 (stable msvc) | 2026-11-15 已装（`rustup` + `x86_64-pc-windows-msvc`） |
+| MSVC Build Tools | ✅ 14.50.35717 | 已补装「使用 C++ 的桌面开发」工作负载 + WinSDK 10.0.26100（VS Installer `--quiet` 静默补装；注意清理宿主注入的大小写重复 `https_proxy/HTTPS_PROXY` 变量，否则安装器 .NET 字典崩溃） |
+| 沙箱 GUI | ❌ 无图形会话 | **本环境无法真正打开 WebView2 窗口**；Rust 编译/配置校验可在此完成，但四步清单的「运行时」验证需在用户桌面端 `npx tauri dev` 执行 |
 
 **实施状态**
 - ✅ 已完成：`tauri-spike` 分支建立；`src-tauri/` 脚手架（Cargo.toml / tauri.conf.json / capabilities / Rust commands 含 P1 大文件守卫语义 / `spike-ui/` 验证页）；契约面复审（§1.1）。
-- ⏳ 阻塞项：安装 rustup + MSVC Build Tools → `npx @tauri-apps/cli dev` 编译跑通。
-- **四步验证清单（spike 验收标准，工具链就绪后执行）**：
+- ✅ **Rust 端编译通过（2026-11-15）**：`cargo build` 干净产出 `target/debug/mdev.exe`（13.8MB），证明 FFI 契约、`tauri.conf.json` 配置、权限校验、6 个自定义命令（`greet`/`read_text_file`/`write_text_file`/`list_dir`/`exists`/`resolve_path`）、图标嵌入全部合法。
+- ⏳ 阻塞项（边界）：本沙箱无 GUI，**无法在此打开窗口跑四步清单**；需用户在桌面端 `npx @tauri-apps/cli dev` 验收。
+- **四步验证清单（spike 验收标准，桌面端执行）**：
   1. **文件 I/O**：spike 页输入任意本地 .md 路径 → `invoke('read_text_file')` 返回内容 + `isLarge/truncated` 标记正确（拿 >20MB 文件验证守卫语义）。
   2. **asset 协议图片**：输入本地图路径 → `convertFileSrc` 后 `<img>` 正常显示（替代 `mdimg://` 的可行性）。
   3. **对话框**：`window.__TAURI__.dialog.open()` 选文件/文件夹正常。
   4. **导出选路（§4.1）**：确认本机 Chrome → CDP `Page.printToPDF` 方案 B 可行性；不可行则评估方案 A。**此项结论决定是否全量迁移。**
+- **桌面端跑法**：`git checkout tauri-spike` → `cd src-tauri` → `npx @tauri-apps/cli dev`（首次会从 npm 拉 CLI；`tauri.conf.json` 无 `devUrl`，Tauri 2 会直接静态托管 `frontendDist=../spike-ui`，无需另起 dev server）。
