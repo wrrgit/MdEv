@@ -879,7 +879,7 @@ fn search_dir(base: &Path, dir: &Path, re: &regex::Regex, include_ext: &[String]
 
 /// 对应 Electron `export:html`（Rust 写文件；PDF/PNG 走 shim 客户端导出）
 #[tauri::command]
-fn export_html(app: AppHandle, options: Value) -> Value {
+async fn export_html(app: AppHandle, options: Value) -> Value {
     let default_path = options
         .get("defaultPath")
         .and_then(|v| v.as_str())
@@ -898,15 +898,24 @@ fn export_html(app: AppHandle, options: Value) -> Value {
     if content.is_empty() {
         return json!({ "success": false, "error": "No content to export" });
     }
-    use tauri_plugin_dialog::DialogExt;
-    let mut b = app.dialog().file().set_file_name(&default_path);
-    b = b.add_filter("HTML", &["html", "htm"]);
-    b = b.add_filter("所有文件", &["*"]);
-    let out = match b.blocking_save_file() {
-        Some(p) => p.to_string(),
-        None => return json!({ "success": false, "canceled": true }),
-    };
     let html = build_export_html(&content, &theme);
+
+    // 与对话框命令同理：blocking_save_file 会「投递主线程任务 + 阻塞等结果」，
+    // 同步命令会自等自死锁。放进 spawn_blocking（线程池），主线程保持消息循环畅通。
+    let out = match tauri::async_runtime::spawn_blocking(move || {
+        use tauri_plugin_dialog::DialogExt;
+        let mut b = app.dialog().file().set_file_name(&default_path);
+        b = b.add_filter("HTML", &["html", "htm"]);
+        b = b.add_filter("所有文件", &["*"]);
+        b.blocking_save_file().map(|p| p.to_string())
+    })
+    .await
+    {
+        Ok(Some(p)) => p,
+        Ok(None) => return json!({ "success": false, "canceled": true }),
+        Err(e) => return json!({ "success": false, "error": e.to_string() }),
+    };
+
     match fs::write(&out, html) {
         Ok(_) => json!({ "success": true, "filePath": out }),
         Err(e) => json!({ "success": false, "error": e.to_string() }),
@@ -927,13 +936,19 @@ fn build_export_html(content: &str, theme: &str) -> String {
 
 /// 落盘命令：渲染端生成的二进制（PDF/PNG）经此写盘（客户端导出方案 E 的写盘环节）
 #[tauri::command]
-fn save_blob(app: AppHandle, default_path: String, data: Vec<u8>) -> Value {
-    use tauri_plugin_dialog::DialogExt;
-    let mut b = app.dialog().file().set_file_name(&default_path);
-    b = b.add_filter("所有文件", &["*"]);
-    let out = match b.blocking_save_file() {
-        Some(p) => p.to_string(),
-        None => return json!({ "success": false, "canceled": true }),
+async fn save_blob(app: AppHandle, default_path: String, data: Vec<u8>) -> Value {
+    // 保存对话框必须移出主线程，理由同 export_html / open_*_dialog。
+    let out = match tauri::async_runtime::spawn_blocking(move || {
+        use tauri_plugin_dialog::DialogExt;
+        let mut b = app.dialog().file().set_file_name(&default_path);
+        b = b.add_filter("所有文件", &["*"]);
+        b.blocking_save_file().map(|p| p.to_string())
+    })
+    .await
+    {
+        Ok(Some(p)) => p,
+        Ok(None) => return json!({ "success": false, "canceled": true }),
+        Err(e) => return json!({ "success": false, "error": e.to_string() }),
     };
     match fs::write(&out, &data) {
         Ok(_) => json!({ "success": true, "filePath": out }),
@@ -941,7 +956,7 @@ fn save_blob(app: AppHandle, default_path: String, data: Vec<u8>) -> Value {
     }
 }
 
-// ── 文件监听（spike：watcher 常驻 forget，unwatch 仅返回成功）──
+// ── 文件监听 ──
 
 // ── 文件监听状态：由 Tauri 托管的 Watcher 注册表 ──
 // 旧实现用 std::mem::forget 常驻 watcher，unwatch 只返成功但实际停不掉；

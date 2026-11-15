@@ -12,6 +12,7 @@ import html2canvas from 'html2canvas'
 import { createDropPathQueue } from './dragDropPaths.js'
 import { showModal } from './dialogHost.js'
 import { resolveInputBox, resolveFormDialog, resolveTableDialog, resolveConfirmUnsaved } from './dialogModel.js'
+import { inchesToPt, computePdfPages, normalizeExportResult, buildHtml2CanvasOptions } from './exportUtils.js'
 
 function installTauriApi() {
   const TAURI = window.__TAURI__
@@ -160,7 +161,7 @@ function installTauriApi() {
   // ── 客户端导出（方案 E：渲染端 html2canvas + jsPDF，Rust 仅负责写盘 save_blob）──
   function buildExportContainer(content, theme) {
     const div = document.createElement('div')
-    div.className = 'markdown-body'
+    div.className = 'markdown-body mdev-export-container'
     div.innerHTML = content
     const bg = theme === 'dark' ? '#0d1117' : '#ffffff'
     div.style.cssText = `position:fixed;left:-100000px;top:0;width:820px;padding:40px;background:${bg};`
@@ -174,26 +175,38 @@ function installTauriApi() {
     if (!content) return { success: false, error: 'No content to export' }
     const { div, bg } = buildExportContainer(content, theme)
     try {
-      const canvas = await html2canvas(div, { backgroundColor: bg, scale: 2 })
+      const canvas = await html2canvas(div, buildHtml2CanvasOptions(bg, 2))
+      if (!canvas.width || !canvas.height) return { success: false, error: 'Empty canvas' }
       const imgData = canvas.toDataURL('image/png')
-      const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' })
-      const pw = pdf.internal.pageSize.getWidth()
-      const ph = pdf.internal.pageSize.getHeight()
-      const iw = pw
-      const ih = (canvas.height * iw) / canvas.width
-      let pos = 0
-      pdf.addImage(imgData, 'PNG', 0, pos, iw, ih)
-      let left = ih - ph
-      while (left > 0) {
-        pos -= ph
-        pdf.addPage()
-        pdf.addImage(imgData, 'PNG', 0, pos, iw, ih)
-        left -= ph
+      const pdf = new jsPDF({
+        orientation: 'p',
+        unit: 'pt',
+        format: String(o.pageSize || 'a4').toLowerCase()
+      })
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const margins = {
+        top: inchesToPt(o.marginTop, 0.75),
+        right: inchesToPt(o.marginRight, 0.75),
+        bottom: inchesToPt(o.marginBottom, 0.75),
+        left: inchesToPt(o.marginLeft, 0.75)
+      }
+      const { drawW, drawH, pages } = computePdfPages({
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height,
+        pageWidth,
+        pageHeight,
+        margins
+      })
+      for (const page of pages) {
+        if (page.newPage) pdf.addPage()
+        pdf.addImage(imgData, 'PNG', margins.left, page.y, drawW, drawH)
       }
       const blob = pdf.output('blob')
       const buf = await blob.arrayBuffer()
-      await invoke('save_blob', { defaultPath, data: new Uint8Array(buf) })
-      return { success: true }
+      // 必须透传：用户取消保存 / 写盘失败 / filePath 都要交给 useExport 判断
+      const result = await invoke('save_blob', { defaultPath, data: new Uint8Array(buf) })
+      return normalizeExportResult(result)
     } catch (e) {
       return { success: false, error: (e && e.message) || String(e) }
     } finally {
@@ -207,11 +220,13 @@ function installTauriApi() {
     if (!content) return { success: false, error: 'No content to export' }
     const { div, bg } = buildExportContainer(content, theme)
     try {
-      const canvas = await html2canvas(div, { backgroundColor: bg, scale })
+      const canvas = await html2canvas(div, buildHtml2CanvasOptions(bg, scale))
+      if (!canvas.width || !canvas.height) return { success: false, error: 'Empty canvas' }
       const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'))
+      if (!blob) return { success: false, error: 'Canvas toBlob returned null' }
       const buf = await blob.arrayBuffer()
-      await invoke('save_blob', { defaultPath, data: new Uint8Array(buf) })
-      return { success: true }
+      const result = await invoke('save_blob', { defaultPath, data: new Uint8Array(buf) })
+      return normalizeExportResult(result)
     } catch (e) {
       return { success: false, error: (e && e.message) || String(e) }
     } finally {
