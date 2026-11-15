@@ -10,6 +10,8 @@
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import { createDropPathQueue } from './dragDropPaths.js'
+import { showModal } from './dialogHost.js'
+import { resolveInputBox, resolveFormDialog, resolveTableDialog, resolveConfirmUnsaved } from './dialogModel.js'
 
 function installTauriApi() {
   const TAURI = window.__TAURI__
@@ -66,89 +68,6 @@ function installTauriApi() {
       console.warn('[MdEv] Tauri 拖拽事件注册失败', err)
     }
   }
-  // ── 渲染端模态对话框（复刻 Electron BrowserWindow HTML 弹窗）──
-  function showModal({ title, fields = [], buttons }) {
-    return new Promise((resolve) => {
-      const overlay = document.createElement('div')
-      overlay.style.cssText =
-        'position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:99999;font-family:-apple-system,"Microsoft YaHei",sans-serif;'
-      const box = document.createElement('div')
-      box.style.cssText =
-        'background:#fff;color:#24292e;border-radius:8px;padding:20px;min-width:320px;max-width:90vw;box-shadow:0 8px 30px rgba(0,0,0,0.2);font-size:13px;'
-      const t = document.createElement('div')
-      t.textContent = title || ''
-      t.style.cssText = 'font-size:14px;font-weight:600;margin-bottom:14px;'
-      box.appendChild(t)
-
-      const inputs = []
-      for (const f of fields) {
-        if (f.type === 'message') {
-          const m = document.createElement('div')
-          m.textContent = f.value != null ? f.value : ''
-          m.style.cssText = 'font-size:13px;color:#24292e;margin-bottom:14px;'
-          box.appendChild(m)
-          continue
-        }
-        if (f.label) {
-          const l = document.createElement('div')
-          l.textContent = f.label
-          l.style.cssText = 'font-size:12px;color:#586069;margin-bottom:4px;'
-          box.appendChild(l)
-        }
-        const inp = document.createElement('input')
-        inp.type = f.type || 'text'
-        if (f.value !== undefined) inp.value = f.value
-        if (f.placeholder) inp.placeholder = f.placeholder
-        if (f.min !== undefined) inp.min = f.min
-        if (f.max !== undefined) inp.max = f.max
-        inp.style.cssText =
-          'width:100%;padding:6px 10px;border:1px solid #e1e4e8;border-radius:5px;font-size:13px;outline:none;margin-bottom:14px;box-sizing:border-box;'
-        box.appendChild(inp)
-        inputs.push({ name: f.name, el: inp })
-      }
-
-      const btns = document.createElement('div')
-      btns.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:4px;'
-      box.appendChild(btns)
-
-      function close(val) {
-        if (overlay.parentNode) overlay.parentNode.removeChild(overlay)
-        resolve(val)
-      }
-
-      for (const b of buttons) {
-        const el = document.createElement('button')
-        el.textContent = b.label
-        const isCancel = b.id === 'cancel'
-        el.style.cssText = isCancel
-          ? 'padding:6px 16px;border-radius:5px;border:1px solid #e1e4e8;cursor:pointer;font-size:13px;background:#fff;color:#24292e;'
-          : 'padding:6px 16px;border-radius:5px;border:1px solid #0366d6;cursor:pointer;font-size:13px;background:#0366d6;color:#fff;'
-        el.onclick = () => {
-          if (b.id === 'cancel') {
-            close({ action: 'cancel', value: null })
-            return
-          }
-          const value = {}
-          for (const { name, el: input } of inputs) value[name] = input.value
-          close({ action: b.id, value })
-        }
-        btns.appendChild(el)
-      }
-
-      overlay.appendChild(box)
-      document.body.appendChild(overlay)
-      if (inputs.length) {
-        const first = inputs[0].el
-        first.focus()
-        if (first.select) {
-          try { first.select() } catch { /* noop */ }
-        }
-      }
-      overlay.addEventListener('mousedown', (e) => {
-        if (e.target === overlay) close({ action: 'cancel', value: null })
-      })
-    })
-  }
 
   function showInputBox(options) {
     const o = options || {}
@@ -156,7 +75,7 @@ function installTauriApi() {
       title: o.title || '输入',
       fields: [{ name: 'v', label: o.label, value: o.value, placeholder: o.placeholder }],
       buttons: [{ id: 'ok', label: '确定' }, { id: 'cancel', label: '取消' }]
-    }).then((r) => (r.action === 'cancel' ? null : r.value.v != null ? r.value.v : ''))
+    }).then(resolveInputBox)
   }
 
   function showFormDialog(options) {
@@ -171,7 +90,7 @@ function installTauriApi() {
       title: o.title || '输入',
       fields,
       buttons: [{ id: 'ok', label: '确定' }, { id: 'cancel', label: '取消' }]
-    }).then((r) => (r.action === 'cancel' ? null : r.value))
+    }).then(resolveFormDialog)
   }
 
   function showTableDialog() {
@@ -182,14 +101,7 @@ function installTauriApi() {
         { name: 'cols', label: '列数', type: 'number', value: 3, min: 1, max: 10 }
       ],
       buttons: [{ id: 'ok', label: '确定' }, { id: 'cancel', label: '取消' }]
-    }).then((r) =>
-      r.action === 'cancel'
-        ? null
-        : {
-            rows: Math.max(1, Math.min(20, parseInt(r.value.rows, 10) || 3)),
-            cols: Math.max(1, Math.min(10, parseInt(r.value.cols, 10) || 3))
-          }
-    )
+    }).then(resolveTableDialog)
   }
 
   function confirmUnsaved(fileName) {
@@ -201,9 +113,8 @@ function installTauriApi() {
         { id: 'discard', label: '不保存' },
         { id: 'cancel', label: '取消' }
       ]
-    }).then((r) => r.action) // 'save' | 'discard' | 'cancel'
+    }).then(resolveConfirmUnsaved)
   }
-
   // ── 剪贴板图片：渲染端读剪贴板 → Uint8Array → save_image_bytes 落盘 ──
   async function saveClipboardImage(basePath, folder) {
     try {
