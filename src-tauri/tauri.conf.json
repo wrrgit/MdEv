@@ -21,6 +21,7 @@
       {
         "label": "main",
         "title": "MdEv",
+        "decorations": false,
         "width": 1200,
         "height": 820,
         "minWidth": 900,

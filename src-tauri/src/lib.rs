@@ -284,12 +284,16 @@ fn write_file(path: String, contents: String) -> Value {
 }
 
 /// 对应 Electron `file:readdir`（嵌套树，返回 `{ success, tree }`）
+/// build_tree 是无限递归遍历（与 Electron buildFileTree 同规则），大目录下可能耗时数秒；
+/// 必须移出主线程，否则选完文件夹后窗口会「未响应」。
 #[tauri::command]
-fn read_directory(path: String) -> Value {
-    match build_tree(Path::new(&path)) {
+async fn read_directory(path: String) -> Value {
+    tauri::async_runtime::spawn_blocking(move || match build_tree(Path::new(&path)) {
         Ok(tree) => json!({ "success": true, "tree": tree }),
         Err(e) => json!({ "success": false, "error": e }),
-    }
+    })
+    .await
+    .unwrap_or_else(|e| json!({ "success": false, "error": e.to_string() }))
 }
 
 fn build_tree(dir: &Path) -> Result<Value, String> {
@@ -470,52 +474,73 @@ fn delete_draft(app: AppHandle, draft_id: String) -> Value {
     json!({ "success": true })
 }
 
-// ── 对话框（走 tauri-plugin-dialog 的阻塞式 Rust API；withGlobalTauri 下插件不挂全局）──
+// ── 对话框 ──
+// 关键（卡死根因）：tauri-plugin-dialog 的 blocking_* 内部是
+//   「run_on_main_thread 投递任务 + rx.recv() 阻塞等结果」。
+// 若命令写成同步 fn（默认跑主线程），主线程会等待自己投递的任务 → 死锁，窗口「未响应」。
+// 因此命令声明为 async，并把 blocking_* 放进 spawn_blocking（线程池线程），
+// 主线程保持消息循环畅通；返回形态不变（Option<String>），垫片无需改动。
 
 #[tauri::command]
-fn open_file_dialog(app: AppHandle) -> Option<String> {
-    use tauri_plugin_dialog::DialogExt;
-    let mut b = app.dialog().file();
-    for (title, exts) in [
-        ("Markdown", vec!["md", "markdown", "mdown", "mdx"]),
-        ("JSON", vec!["json", "jsonc"]),
-        ("图片", vec!["png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "avif"]),
-        ("所有文件", vec!["*"]),
-    ] {
-        b = b.add_filter(title, &exts);
-    }
-    b.blocking_pick_file().map(|p| p.to_string())
+async fn open_file_dialog(app: AppHandle) -> Option<String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri_plugin_dialog::DialogExt;
+        let mut b = app.dialog().file();
+        for (title, exts) in [
+            ("Markdown", vec!["md", "markdown", "mdown", "mdx"]),
+            ("JSON", vec!["json", "jsonc"]),
+            ("图片", vec!["png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "avif"]),
+            ("所有文件", vec!["*"]),
+        ] {
+            b = b.add_filter(title, &exts);
+        }
+        b.blocking_pick_file().map(|p| p.to_string())
+    })
+    .await
+    .unwrap_or(None)
 }
 
 #[tauri::command]
-fn open_folder_dialog(app: AppHandle) -> Option<String> {
-    use tauri_plugin_dialog::DialogExt;
-    app.dialog().file().blocking_pick_folder().map(|p| p.to_string())
+async fn open_folder_dialog(app: AppHandle) -> Option<String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri_plugin_dialog::DialogExt;
+        app.dialog().file().blocking_pick_folder().map(|p| p.to_string())
+    })
+    .await
+    .unwrap_or(None)
 }
 
 #[tauri::command]
-fn save_file_dialog(app: AppHandle, default_name: Option<String>) -> Option<String> {
-    use tauri_plugin_dialog::DialogExt;
-    let mut b = app
-        .dialog()
-        .file()
-        .set_file_name(default_name.unwrap_or_else(|| "未命名.md".into()));
-    b = b.add_filter("Markdown", &["md", "markdown"]);
-    b = b.add_filter("所有文件", &["*"]);
-    b.blocking_save_file().map(|p| p.to_string())
+async fn save_file_dialog(app: AppHandle, default_name: Option<String>) -> Option<String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri_plugin_dialog::DialogExt;
+        let mut b = app
+            .dialog()
+            .file()
+            .set_file_name(default_name.unwrap_or_else(|| "未命名.md".into()));
+        b = b.add_filter("Markdown", &["md", "markdown"]);
+        b = b.add_filter("所有文件", &["*"]);
+        b.blocking_save_file().map(|p| p.to_string())
+    })
+    .await
+    .unwrap_or(None)
 }
 
 #[tauri::command]
-fn open_image_dialog(app: AppHandle) -> Option<String> {
-    use tauri_plugin_dialog::DialogExt;
-    let mut b = app.dialog().file();
-    for (title, exts) in [
-        ("图片", vec!["png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "avif"]),
-        ("所有文件", vec!["*"]),
-    ] {
-        b = b.add_filter(title, &exts);
-    }
-    b.blocking_pick_file().map(|p| p.to_string())
+async fn open_image_dialog(app: AppHandle) -> Option<String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri_plugin_dialog::DialogExt;
+        let mut b = app.dialog().file();
+        for (title, exts) in [
+            ("图片", vec!["png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "ico", "avif"]),
+            ("所有文件", vec!["*"]),
+        ] {
+            b = b.add_filter(title, &exts);
+        }
+        b.blocking_pick_file().map(|p| p.to_string())
+    })
+    .await
+    .unwrap_or(None)
 }
 
 // ── Shell / 路径 ──
@@ -1003,10 +1028,15 @@ pub fn run() {
             }
         }))
         .setup(|app| {
-            // 注册原生菜单（点击 emit `menu:<id>`）
+            // 应用自带 TitleBar/MenuBar（Electron `frame:false` 同款），因此隐藏 Tauri 原生
+            // 菜单栏，避免「上下两个菜单栏」；但保留菜单对象以维持 Ctrl+S/Ctrl+O 等加速键
+            // 与 menu:<id> 事件链。hide_menu() 在 Windows 支持（仅 macOS 不支持）。
             let app_handle = app.app_handle();
-            if let Ok(menu) = build_menu(&app_handle) {
-                let _ = app.set_menu(menu);
+            if let Some(win) = app.get_webview_window("main") {
+                if let Ok(menu) = build_menu(&app_handle) {
+                    let _ = win.set_menu(menu);
+                }
+                let _ = win.hide_menu();
             }
             // 启动即广播一次系统主题（渲染端 onThemeChanged 监听；OS 实时变化暂不追踪）
             let theme = if dark_light::detect() == dark_light::Mode::Dark {

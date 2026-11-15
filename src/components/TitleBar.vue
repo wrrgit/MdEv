@@ -1,6 +1,6 @@
 <template>
   <div class="title-bar" @dblclick="toggleMaximize">
-    <div class="title-bar-drag">
+    <div class="title-bar-drag" data-tauri-drag-region>
       <span class="app-logo">
         <img src="@/assets/logo.png" alt="MdEv" width="24" height="24" class="logo-img" />
       </span>
