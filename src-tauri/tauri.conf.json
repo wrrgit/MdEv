@@ -4,7 +4,10 @@
   "version": "0.8.0",
   "identifier": "com.mdev.editor",
   "build": {
-    "frontendDist": "../spike-ui"
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
   },
   "bundle": {
     "icon": [
@@ -16,7 +19,8 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "MdEv — Tauri Spike",
+        "label": "main",
+        "title": "MdEv",
         "width": 1200,
         "height": 820,
         "minWidth": 900,
