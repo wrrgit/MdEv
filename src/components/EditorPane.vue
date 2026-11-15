@@ -337,19 +337,13 @@ function insertImageMarkdown(view, alt, imgPath) {
   view.focus()
 }
 
-function onDrop(e) {
-  const files = e.dataTransfer?.files
-  if (!files || files.length === 0) return
-  e.preventDefault()
-
+// 统一入口：HTML5 drop 与 Tauri 原生拖放事件共用
+function insertDroppedImages(paths) {
   const v = editorView.value || window.editorRef
   if (!v) return
 
   const basePath = getAssetBasePath()
-
-  for (const file of files) {
-    // Electron 32+ 移除 File.path，统一走 preload 的 webUtils
-    const filePath = file.path || window.api?.getPathForFile?.(file) || ''
+  for (const filePath of paths) {
     if (!filePath) continue
     if (!IMAGE_EXT_RE.test(filePath)) continue
 
@@ -363,6 +357,25 @@ function onDrop(e) {
   }
   v.focus()
 }
+
+function onDrop(e) {
+  const files = e.dataTransfer?.files
+  if (!files || files.length === 0) return
+  e.preventDefault()
+
+  const paths = Array.from(files)
+    // Electron 32+ 移除 File.path，统一走 preload 的 webUtils；Tauri 走垫片路径队列
+    .map((file) => file.path || window.api?.getPathForFile?.(file) || '')
+    .filter(Boolean)
+  insertDroppedImages(paths)
+}
+
+// Tauri 原生拖放兜底（若 HTML5 drop 已被接管，垫片派发此事件）
+function onTauriDrop(e) {
+  insertDroppedImages(e.detail?.paths || [])
+}
+onMounted(() => window.addEventListener('mdev:tauri-drop', onTauriDrop))
+onUnmounted(() => window.removeEventListener('mdev:tauri-drop', onTauriDrop))
 
 // ── 剪贴板图片粘贴 ──
 // 场景 1：剪贴板携带图片文件（从资源管理器/其他应用复制）→ 复制到 assets 并插入引用

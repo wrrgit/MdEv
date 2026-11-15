@@ -9,6 +9,7 @@
 
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
+import { createDropPathQueue } from './dragDropPaths.js'
 
 function installTauriApi() {
   const TAURI = window.__TAURI__
@@ -34,6 +35,37 @@ function installTauriApi() {
 
   const menuListeners = {}
 
+  // ── 拖拽文件路径桥接 ──
+  // Tauri 2 默认接管文件拖放，HTML5 DataTransfer.files 里的 File 没有 .path。
+  // 通过 webview.onDragDropEvent 取得真实路径，交给 dragDropPaths 队列做双通道去重：
+  // HTML5 drop 触发时 getPathForFile 消费路径；未被消费的由 mdev:tauri-drop 兜底派发。
+  const dropQueue = createDropPathQueue({
+    dispatch: (paths) =>
+      window.dispatchEvent(new CustomEvent('mdev:tauri-drop', { detail: { paths } }))
+  })
+
+  let webview = null
+  try {
+    webview = TAURI?.webview?.getCurrentWebview?.() || null
+  } catch (err) {
+    // 本文件是 main.js 的静态 import：此处抛错会中断 installTauriApi()，
+    // 导致 window.api 装不上、全应用按钮失效。拖拽能力降级即可，绝不可阻断启动。
+    console.warn('[MdEv] 获取当前 Webview 失败，拖拽打开可能不可用', err)
+  }
+  if (webview && typeof webview.onDragDropEvent === 'function') {
+    try {
+      Promise.resolve(
+        webview.onDragDropEvent((event) => {
+          const payload = event?.payload
+          if (payload?.type === 'drop') dropQueue.setPaths(payload.paths)
+        })
+      ).catch((err) => {
+        console.warn('[MdEv] Tauri 拖拽事件注册失败，拖拽打开可能不可用', err)
+      })
+    } catch (err) {
+      console.warn('[MdEv] Tauri 拖拽事件注册失败', err)
+    }
+  }
   // ── 渲染端模态对话框（复刻 Electron BrowserWindow HTML 弹窗）──
   function showModal({ title, fields = [], buttons }) {
     return new Promise((resolve) => {
@@ -277,8 +309,8 @@ function installTauriApi() {
   }
 
   window.api = {
-    // ── 拖拽文件路径（webview 中 File 无 .path，返回空串）──
-    getPathForFile: (file) => (file && (file.path || '')) || '',
+    // ── 拖拽文件路径（从 Tauri onDragDropEvent 的路径队列按 basename 消费）──
+    getPathForFile: (file) => dropQueue.consume(file),
 
     // ── 文件操作 ──
     readFile: (filePath) => invoke('read_file', { path: filePath }),

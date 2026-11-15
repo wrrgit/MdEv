@@ -300,11 +300,9 @@ function activateSearch(scope) {
 // ── 拖拽文件到窗口打开（.md 等文本文件；图片由编辑区拖拽处理）──
 function onDragOverApp() {}
 
-async function onDropApp(e) {
-  const files = Array.from(e.dataTransfer?.files || [])
-  if (files.length === 0) return
-  for (const file of files) {
-    const filePath = file.path || window.api?.getPathForFile?.(file) || ''
+// 统一入口：HTML5 drop 与 Tauri 原生拖放事件（mdev:tauri-drop）共用同一套过滤/打开逻辑
+async function openDroppedPaths(paths) {
+  for (const filePath of paths) {
     if (!filePath) continue
     const ext = filePath.toLowerCase().match(/\.([^.]+)$/)?.[1] || ''
     if (!TEXT_EXTS.includes(ext) || IMAGE_EXTS.includes(ext)) continue
@@ -313,6 +311,22 @@ async function onDropApp(e) {
     } catch {}
   }
 }
+
+async function onDropApp(e) {
+  const files = Array.from(e.dataTransfer?.files || [])
+  if (files.length === 0) return
+  const paths = files
+    .map((file) => file.path || window.api?.getPathForFile?.(file) || '')
+    .filter(Boolean)
+  await openDroppedPaths(paths)
+}
+
+// Tauri 下原生拖放可能吞掉 HTML5 drop，垫片会把未被消费的路径派发到这里兜底
+function onTauriDrop(e) {
+  openDroppedPaths(e.detail?.paths || [])
+}
+onMounted(() => window.addEventListener('mdev:tauri-drop', onTauriDrop))
+onUnmounted(() => window.removeEventListener('mdev:tauri-drop', onTauriDrop))
 
 // ── 编辑器命令辅助（命令面板用）──
 function withEditor(fn) {
