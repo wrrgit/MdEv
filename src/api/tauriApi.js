@@ -13,8 +13,14 @@ import html2canvas from 'html2canvas'
 function installTauriApi() {
   const TAURI = window.__TAURI__
   if (!TAURI) return
-  const invoke = TAURI.core.invoke
-  const listen = TAURI.event.listen
+  const invoke = TAURI?.core?.invoke
+  const listen = TAURI?.event?.listen
+  // 防御：全局结构若与预期不符，宁可明确报错也不要抛异常阻断模块求值
+  //（本文件是 main.js 的静态 import，顶层抛错会导致整个 Vue 应用不挂载 → 白屏）
+  if (typeof invoke !== 'function' || typeof listen !== 'function') {
+    console.error('[MdEv] window.__TAURI__ 缺少 core.invoke / event.listen，无法安装 window.api')
+    return
+  }
 
   // ── 事件绑定：返回同步 unsubscribe 函数（与 Electron 版返回函数一致）──
   function bindEvent(event, cb) {
@@ -366,8 +372,20 @@ function installTauriApi() {
   }
 }
 
-if (window.__TAURI__ && !window.api) {
-  installTauriApi()
+try {
+  if (window.__TAURI__ && !window.api) {
+    installTauriApi()
+    if (window.api) console.info('[MdEv] Tauri window.api 已安装')
+  } else if (!window.api) {
+    // 纯浏览器直连 Vite dev server 时会走到这里：所有 window.api?.x 静默跳过，
+    // 表现为「页面有壳但点按钮无反应」。给出明确提示，避免误判为应用 bug。
+    console.warn(
+      '[MdEv] 未检测到 Electron preload / Tauri 运行时，window.api 不可用。' +
+      '请在 Tauri/Electron 应用窗口内使用，不要直接用浏览器打开 http://localhost:5173/'
+    )
+  }
+} catch (e) {
+  console.error('[MdEv] window.api 垫片安装失败（已隔离，不影响页面渲染）', e)
 }
 
 export default installTauriApi

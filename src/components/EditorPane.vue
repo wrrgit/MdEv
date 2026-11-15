@@ -453,6 +453,12 @@ const isDark = computed(() => {
 
 // 注意：vue-codemirror 默认已注入 basicSetup（行号/历史/默认键位/括号匹配/激活行/自动补全等），
 // 这里只补充 basicSetup 之外的扩展，避免重复注册（否则会出现双行号栏等异常）。
+// 语言（Markdown 高亮）：大文件模式下 reconfigure 为 [] 关闭高亮，避免巨量 tokenize 卡顿。
+// 必须先于 baseExtensions 声明：数组字面量在 setup 求值时即调用 .of()，
+// 若声明在后则命中 TDZ（Cannot access 'languageCompartment' before initialization），
+// 整个 EditorPane setup 抛错 → 应用挂载失败、按钮无响应。
+const languageCompartment = new Compartment()
+const markdownExt = markdown({ base: markdownLanguage })
 const baseExtensions = [
   // Markdown 语法高亮（basicSetup 不含语言）；大文件模式下由 languageCompartment 关闭
   languageCompartment.of(markdownExt),
@@ -512,9 +518,6 @@ const baseExtensions = [
 const wordWrapCompartment = new Compartment()
 const focusCompartment = new Compartment()
 const typewriterCompartment = new Compartment()
-// 语言（Markdown 高亮）：大文件模式下 reconfigure 为 [] 关闭高亮，避免巨量 tokenize 卡顿
-const languageCompartment = new Compartment()
-const markdownExt = markdown({ base: markdownLanguage })
 
 // P0：完整扩展列表（basicSetup 由 vue-codemirror 默认注入，此处为额外扩展）。
 // 所有标签共享同一套扩展；切标签时通过 view.setState 恢复各标签独立 state（含 undo 历史 / 光标 / 选区 / 滚动）。
