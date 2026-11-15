@@ -41,6 +41,7 @@ import { buildAnchors, yToLine, lineToY, currentHeadingLine, lockScrollSync, isS
 import ContextMenu from './ContextMenu.vue'
 import { useSelectionMenu } from '@/composables/useSelectionMenu'
 import { useOpenFile } from '@/composables/useOpenFile'
+import { isLocalImageUrl, fromLocalImageUrl } from '@/core/markdown/localImageUrl'
 
 const store = useEditorStore()
 const { openFile } = useOpenFile()
@@ -620,10 +621,9 @@ async function onPreviewClick(e) {
   const img = e.target.closest('img')
   if (img) {
     const src = img.getAttribute('src') || ''
-    if (src.startsWith('mdimg://')) {
+    if (isLocalImageUrl(src)) {
       e.preventDefault()
-      const filePath = decodeURIComponent(src.replace(/^mdimg:\/\/\/?/, '')).replace(/^\//, '')
-      await window.api?.openPath(filePath)
+      await window.api?.openPath(fromLocalImageUrl(src))
     }
     return
   }
@@ -648,16 +648,16 @@ async function onPreviewClick(e) {
     return
   }
 
-  // 外部链接：交给系统浏览器
-  if (/^(https?:|mailto:)/i.test(href)) return
-
-  // mdimg 协议的链接
-  if (href.startsWith('mdimg://')) {
+  // 本地文件协议（mdimg 或 Tauri asset）必须先于外部链接判断：
+  // Windows 下 asset URL 形如 http://asset.localhost/...，否则会被当成外链交给浏览器
+  if (isLocalImageUrl(href)) {
     e.preventDefault()
-    const filePath = decodeURIComponent(href.replace(/^mdimg:\/\/\/?/, '')).replace(/^\//, '')
-    await openLocalFile(filePath)
+    await openLocalFile(fromLocalImageUrl(href))
     return
   }
+
+  // 外部链接：交给系统浏览器
+  if (/^(https?:|mailto:)/i.test(href)) return
 
   // 相对路径链接
   e.preventDefault()
